@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.DS_Store
+.ipynb_checkpoints/
+venv/
+.venv/
+
+# Artefacto de analisis: lo regenera validacion.py, la app no lo necesita
+datos/validacion.parquet
+
+# La fuente pesa 25 MB y no hace falta en el deploy: la app lee el parquet ya
+# procesado. Para regenerarlo hace falta el xlsx en ../data/ y correr
+# preparar_datos.py localmente.
+*.xlsx
