@@ -173,6 +173,10 @@ def proyectar(serie: pd.Series, horizonte: int = 3, nivel: float = 0.80,
     if len(y) < MIN_OBS or y.sum() == 0:
         return None
 
+    # Contra MOTORES (el registro completo) y no contra MOTORES_UI (lo que el
+    # selector ofrece): esta funcion es la API del proyecto, no solo la de la
+    # pantalla. Los scripts de medicion piden "Theta" o "Holt amortiguado" por
+    # nombre y tienen que seguir resolviendo aunque la interfaz ya no los liste.
     motor_fn = metodos.MOTORES.get(motor)
     if motor_fn is None:
         return None

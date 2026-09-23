@@ -89,6 +89,10 @@ def ensemble(y, h):
     return np.median(np.vstack([fn(y, h) for fn in COMPONENTES_ENSEMBLE]), axis=0)
 
 
+# Registro COMPLETO de motores: todo lo que se mide, se calibra y se puede
+# resolver por nombre. `calibrar.py` recorre este diccionario, y por eso
+# `datos/calibracion.json` trae factores de los seis --- incluidos Theta y Holt,
+# que son el registro de la medicion y no se tocan.
 MOTORES = {
     "Ensemble (recomendado)": ensemble,
     "Theta": theta,
@@ -97,6 +101,31 @@ MOTORES = {
     "Tendencia lineal": lineal,
     "Ultimo valor (naive)": naive,
 }
+
+# Lo que el selector de la app ofrece. Es un SUBCONJUNTO de MOTORES, no una
+# lista aparte: `pronostico.proyectar` sigue resolviendo contra MOTORES, asi que
+# cualquier nombre de aqui tiene garantizado su motor y sus factores calibrados.
+#
+# Theta y Holt amortiguado quedan fuera del selector y DENTRO de MOTORES a
+# proposito. En la competencia de validacion.py sobre 110 segmentos (11,688
+# predicciones) quedaron en 1.225 y 1.325 de MASE contra 1.216 del ensemble:
+# ninguno de los dos mejora la eleccion por defecto, y ofrecerlos en pantalla
+# invitaba a cambiar de motor por un empate estadistico. Pero son justo los dos
+# competidores que sostienen por que el motor por defecto es el ensemble --- sin
+# ellos la tabla del README se queda comparando el ensemble contra el naive y el
+# ARIMA, que es la parte facil de ganar ---, asi que siguen existiendo,
+# midiendose en cada corrida de validacion.py y calibrandose en calibrar.py.
+# Quitarlos del codigo seria borrar la evidencia, no simplificar la interfaz.
+#
+# El ARIMA si se queda en el selector, aunque haya perdido: es el metodo con el
+# que arranco el proyecto y el que la gente espera ver, y poder reproducir en
+# pantalla que queda por debajo del naive vale mas que ahorrarse una opcion.
+MOTORES_UI = (
+    "Ensemble (recomendado)",
+    "ARIMA",
+    "Tendencia lineal",
+    "Ultimo valor (naive)",
+)
 
 
 # --------------------------------------------------------------- con driver

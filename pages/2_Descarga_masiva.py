@@ -67,7 +67,10 @@ m1, m2, m3 = st.columns(3)
 metrica_nombre = m1.selectbox("Metrica", list(METRICAS))
 metrica = METRICAS[metrica_nombre]
 horizonte = m2.slider("Ciclos a proyectar", 1, 5, 3)
-motor = m3.selectbox("Metodo", list(metodos.MOTORES), index=0,
+# Misma lista que la pagina principal, y por la misma razon: MOTORES_UI es el
+# subconjunto ofrecible de MOTORES. Theta y Holt quedan fuera del selector pero
+# siguen corriendo en la competencia de validacion.py (ver `metodos.MOTORES_UI`).
+motor = m3.selectbox("Metodo", list(metodos.MOTORES_UI), index=0,
                      help="El ensemble gana el backtest; el ARIMA se deja para comparar.")
 
 st.subheader("Filtros fijos (se aplican a todas las categorias)")

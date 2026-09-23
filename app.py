@@ -647,8 +647,12 @@ metrica_nombre = st.sidebar.selectbox("Metrica a proyectar", list(METRICAS))
 metrica = METRICAS[metrica_nombre]
 horizonte = st.sidebar.slider("Ciclos a proyectar", 1, 5, 3)
 confianza = st.sidebar.select_slider("Confianza del intervalo", [50, 80, 95], value=80)
+# MOTORES_UI, no MOTORES: Theta y Holt amortiguado siguen midiendose en
+# validacion.py y calibrandose en calibrar.py, pero no se ofrecen aqui porque
+# empatan con el ensemble (1.225 y 1.325 de MASE contra 1.216) y elegirlos seria
+# cambiar de motor por ruido. Ver el comentario de `metodos.MOTORES_UI`.
 motor = st.sidebar.selectbox(
-    "Metodo", list(metodos.MOTORES), index=0,
+    "Metodo", list(metodos.MOTORES_UI), index=0,
     help="El ensemble gana el backtest sobre 110 segmentos. El ARIMA esta "
          "disponible para comparar, pero ahi quedo por debajo del naive: con 11 "
          "observaciones anuales no tiene estructura que identificar.")

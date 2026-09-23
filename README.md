@@ -258,22 +258,53 @@ el agregado**, así que cualquier total llamado "nacional" lo excluye.
 Un backtest de origen móvil sobre 110 segmentos reales (11,688 predicciones) lo
 dejó **por debajo del naive**:
 
-| Método | MASE | MASE a 3 años | Gana su segmento |
-|---|---|---|---|
-| **ensemble** (mediana de naive, drift, lineal, media móvil 3) | **1.216** | 1.475 | 8 |
-| theta | 1.225 | **1.435** | 13 |
-| holt amortiguado | 1.325 | 1.623 | 12 |
-| naive | 1.379 | 1.793 | 6 |
-| lineal | 1.384 | 1.751 | 33 |
-| **arima** | **1.422** | 1.841 | **1** |
+| Método | MASE | MASE a 3 años | Gana su segmento | En el selector |
+|---|---|---|---|---|
+| **ensemble** (mediana de naive, drift, lineal, media móvil 3) | **1.216** | 1.475 | 8 | sí, por defecto |
+| theta | 1.225 | **1.435** | 13 | no — benchmark |
+| holt amortiguado | 1.325 | 1.623 | 12 | no — benchmark |
+| naive | 1.379 | 1.793 | 6 | sí |
+| lineal | 1.384 | 1.751 | 33 | sí |
+| **arima** | **1.422** | 1.841 | **1** | sí |
 
 La razón: con 11 observaciones anuales no hay estructura que identificar. El 83%
 de los segmentos elegía ARIMA(0,1,0) — que es literalmente "último valor" o
 "último valor + pendiente promedio". Box-Jenkins pide ~50 observaciones.
 No es efecto de COVID: excluyendo 2020-21 el orden es idéntico.
 
-El motor por defecto es el ensemble. El ARIMA sigue disponible en el selector
-para comparar. Reproducible con `python validacion.py`.
+El motor por defecto es el ensemble. Reproducible con `python validacion.py`.
+
+**Cuatro motores en el selector, seis medidos.** El selector de las dos páginas
+de proyección ofrece exactamente **Ensemble (recomendado)**, **ARIMA**,
+**Tendencia lineal** y **Último valor (naive)**. Theta y Holt amortiguado
+**siguen en el código y siguen midiéndose**, pero ya no se pueden elegir.
+
+La distinción no es de calidad de implementación, es de para qué sirve cada uno:
+
+- **Elegibles.** El ensemble porque gana. Los otros tres porque son la referencia
+  contra la que se lee el número: el naive es el piso que define el MASE, la
+  lineal es "la tendencia" que todo el mundo trazaría a mano, y el ARIMA es el
+  método con el que arrancó el proyecto y el que cualquiera va a preguntar por
+  qué no se usa — poder reproducir en pantalla que queda por debajo del naive
+  vale más que ahorrarse una opción.
+- **Benchmarks, no opciones.** Theta y Holt amortiguado quedan en 1.225 y 1.325
+  contra 1.216 del ensemble: ninguno de los dos mejora la elección por defecto, y
+  el primero es un empate estadístico. Ofrecerlos invitaba a cambiar de motor por
+  ruido, y una cifra reportada con Theta en vez del ensemble no es más precisa,
+  solo es distinta. Pero son justo los dos rivales que hacen que *"el ensemble
+  gana"* signifique algo: sin ellos la tabla compara el ensemble contra el naive
+  y el ARIMA, que es la parte fácil de ganar. Borrarlos del código sería borrar
+  la evidencia, no simplificar la interfaz.
+
+Cómo está hecho: `metodos.MOTORES` es el registro completo de los seis y
+`metodos.MOTORES_UI` es la tupla de cuatro que alimenta los selectores.
+`pronostico.proyectar` resuelve contra **MOTORES**, no contra el subconjunto —es
+la API del proyecto, no la de la pantalla—, así que un script de medición puede
+seguir pidiendo `"Theta"` por nombre. `validacion.py` corre con sus doce métodos
+(tiene implementaciones propias, independientes de las de `metodos.py`) y
+`calibrar.py` recorre los seis de `MOTORES`, de modo que
+`datos/calibracion.json` conserva los factores de Theta y Holt y no los pierde en
+la siguiente corrida.
 
 **El hoyo de COVID es real y marcarlo no sirve — también medido.** Nacionalmente
 el nuevo ingreso cae -7.0% en 2020-2021, el único ciclo negativo de la serie.
@@ -353,7 +384,9 @@ serie. Cobertura medida fuera de muestra (200 splits por segmento):
 | 80% | 79.5% |
 | 95% | 94.4% |
 
-Cada motor tiene sus propios factores, porque cada uno se equivoca distinto.
+Cada motor tiene sus propios factores, porque cada uno se equivoca distinto. Se
+calibran **los seis**, incluidos Theta y Holt, que no están en el selector: sus
+factores son parte del registro de la medición y se conservan.
 Reproducible con `python calibrar.py`.
 
 **El ensemble es conservador, a propósito.** Proyecta crecimientos por debajo del
@@ -486,7 +519,7 @@ con su serie padre y, si el volumen aguanta, la derivada por participación
 | `validacion_externos.py` | Backtest anclaje contra nada. Genera la tabla de arriba |
 | `validacion_covid.py` | Backtest del flag COVID y de la limpieza del outlier. Genera la tabla de arriba |
 | `zonas.py` | Catálogo de zonas metropolitanas (Metrópolis de México 2020) |
-| `metodos.py` | Los métodos de pronóstico puntual |
+| `metodos.py` | Los métodos de pronóstico puntual. `MOTORES` los registra todos; `MOTORES_UI` es el subconjunto que el selector ofrece |
 | `pronostico.py` | API que usa la app: punto + intervalo calibrado + backtest |
 | `modelo.py` | Motor ARIMA (se conserva para comparación) |
 | `validacion.py` | Competencia entre métodos. Genera la tabla de arriba |

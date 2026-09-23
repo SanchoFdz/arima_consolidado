@@ -91,6 +91,13 @@ def ensemble_amplio(y, h):
     return np.median(np.vstack(preds), axis=0)
 
 
+# La competencia corre con TODOS los metodos, incluidos los que la app ya no
+# ofrece en su selector. Theta y Holt amortiguado salieron de `metodos.MOTORES_UI`
+# porque empatan con el ensemble y elegirlos en pantalla seria cambiar de motor
+# por ruido; aqui tienen que seguir compitiendo, porque son precisamente los dos
+# rivales que hacen que "el ensemble gana" signifique algo. Estas
+# implementaciones son las de este modulo, no las de metodos.py, asi que la
+# competencia es independiente de lo que la interfaz exponga por definicion.
 METODOS = {
     "holt_amortiguado": holt_amortiguado,
     "theta": theta,

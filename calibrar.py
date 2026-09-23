@@ -111,6 +111,12 @@ def main():
     rng = np.random.default_rng(7)
 
     salida = {}
+    # MOTORES completo, no MOTORES_UI: se calibran los seis aunque el selector
+    # de la app ofrezca cuatro. Theta y Holt amortiguado son los competidores que
+    # justifican que el motor por defecto sea el ensemble, y una calibracion que
+    # solo cubriera lo que esta en pantalla dejaria de poder compararlos en
+    # igualdad de condiciones --- ademas de borrar sus factores de
+    # datos/calibracion.json en la siguiente corrida.
     for nombre, motor in metodos.MOTORES.items():
         salida[nombre] = calibrar_motor(series, nombre, motor, rng)
 
