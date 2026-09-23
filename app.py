@@ -38,8 +38,11 @@ def tabla_salida(res, metrica_nombre):
         "ciclo": [f"{a}-{a + 1}" for a in res.historico.index],
         "tipo": "historico",
         metrica_nombre: res.historico.values,
-        "inferior": None,
-        "superior": None,
+        # float("nan") y no None: con None la columna queda de tipo object y el
+        # concat con la parte proyectada (float) tiene que adivinar el dtype.
+        # pandas ya avisa que va a dejar de adivinarlo.
+        "inferior": float("nan"),
+        "superior": float("nan"),
     })
     proy = pd.DataFrame({
         "ciclo": res.proyeccion["ciclo"],
