@@ -48,20 +48,24 @@ Cortes disponibles:
 |---|---|
 | Geográfico | Nacional · Región Nielsen · Área Nielsen · **Zona metropolitana** · Estado · Municipio |
 | Nivel educativo | TSU, Licenciatura, Normal, Especialidad, Maestría, Doctorado |
-| Modalidad | Escolarizada · No escolarizada · Mixta · Dual (multiselect: se combinan libremente) |
+| Modalidad | **Online (no escolarizada + mixta)** · Escolarizada · No escolarizada · Mixta · Dual (multiselect: se combinan libremente) |
 | Disciplina | Campo de conocimiento → Carrera o grupo de carreras (69 grupos comparables) |
 | Métrica | NI · Matrícula · Egresados · Solicitudes |
 
-**Modalidad es multiselect.** Las opciones son las modalidades base del panel y se
-combinan libremente (una, dos o las que sean); vacío = todas sumadas. El antiguo
-agrupador compuesto *"Online (no escolarizada + mixta)"* ya no aparece en el
-selector porque se arma marcando esas dos casillas, y tener el mismo corte con
-dos nombres distintos sólo invita a reportar cifras que parecen de universos
-diferentes. El nombre sigue vivo en dos lugares: `PRESETS_MODALIDAD` (`comun.py`)
-lo traduce a sus modalidades base, así que cualquier código que todavía mande el
-valor compuesto filtra igual que antes; y si lo seleccionado coincide exacto con
-un preset, el título de la gráfica y la ficha del Excel lo siguen llamando
-"Online (no escolarizada + mixta)".
+**Modalidad es multiselect, y la primera opción es un agregador.** Las opciones
+son las cuatro modalidades base del panel más *"Online (no escolarizada +
+mixta)"*, que se expande a esas dos; se combinan libremente (una, dos o las que
+sean) y vacío = todas sumadas. Elegir el agregador y marcar las dos casillas
+producen literalmente el mismo filtro —`normalizar_modalidades` traduce el
+compuesto a sus modalidades base antes de filtrar, así que es la misma clave de
+caché y el mismo número—; verificado: 192,786 filas y 3,878,794 de NI en los dos
+caminos, y el render completo de la página idéntico campo por campo.
+
+El agregador **se había quitado** al pasar a multiselect, con el argumento de que
+se arma marcando dos casillas y tener el mismo corte con dos nombres invita a
+reportar cifras que parecen de universos diferentes. **El argumento estaba
+equivocado** y se revirtió. Ver la sección de abajo: no es un atajo de
+conveniencia, es la única serie de modalidad comparable en los 11 ciclos.
 
 ## Decisiones que conviene conocer antes de usar los números
 
@@ -144,6 +148,99 @@ campo de un grupo es aquel donde pesa más su NI, así que la composición de un
 campo no es idéntica a la del área ANUIES: partir un grupo entre dos campos
 habría requerido proporciones inventadas, que es justo lo que la concordancia no
 hace.
+
+**El otro quiebre de la fuente: modalidad, 2023-2024.** No es el del catálogo y
+conviene no confundirlos. En el ciclo 2023-2024 ANUIES empezó a reportar **MIXTA**
+—y DUAL— como modalidades propias. No se reclasificó ninguna carrera: se partió
+en dos una columna que antes venía junta, y esa matrícula salió casi toda de NO
+ESCOLARIZADA. Nuevo ingreso nacional:
+
+| | 2022-2023 | 2023-2024 | 2024-2025 | var 23 | var 24 |
+|---|---|---|---|---|---|
+| NO ESCOLARIZADA sola | 437,882 | 261,678 | 297,016 | **-40.2%** | +13.5% |
+| **Online** (no esc. + mixta) | 437,882 | 475,083 | 540,301 | **+8.5%** | +13.7% |
+
+El -40.2% no perdió un solo alumno. MIXTA es el **44.9%** del online en 2023-2024
+y el **45.0%** en 2024-2025, y la suma de las dos es continua. Por eso el
+agregador volvió al selector: con multiselect *sí* se arma marcando dos casillas,
+pero esconder detrás de "marca estas dos y no estas otras" la **única serie de
+modalidad comparable en los 11 ciclos** es esconder el camino correcto. El resto
+de los presets viejos —"Escolarizada (presencial)", "Solo no escolarizada"— no
+volvieron: ésos sí son un duplicado de marcar una casilla.
+
+La app avisa en tres lugares (`taxonomia.py`):
+
+- **Al seleccionar NO ESCOLARIZADA sin MIXTA**, con la cuenta hecha y qué hacer.
+  Es determinista, mira la selección y no los datos, igual que `nota_trasvase`
+  hace con las dos áreas que intercambiaron TIC.
+- **Al detectar el salto en la serie que está en pantalla.** `quiebres()` evalúa
+  los **dos** cruces conocidos, 2016→2017 y 2022→2023, con la misma prueba
+  (el salto contra la mediana de los demás cruces). Antes sólo miraba el primero,
+  así que un corte de NO ESCOLARIZADA se proyectaba sobre el escalón sin decir
+  nada; hoy el nacional sale marcado "alto" (baja 40% contra un cambio típico de
+  13%). Es red de seguridad para cruces finos, donde la nota de selección no
+  alcanza.
+- **Al recortar la serie de MIXTA o DUAL.** El recorte ya existía; el mensaje
+  estaba mal. Cualquier serie que arrancara en 2017 o después recibía el texto
+  del cambio de catálogo de áreas, así que a MIXTA —que arranca en 2023— le decía
+  que era una categoría del catálogo nuevo. Falso: no hay ninguna carrera
+  reclasificada detrás. Ahora el aviso se elige por el ciclo exacto de arranque, y
+  fuera de los dos ciclos conocidos es descriptivo y no atribuye causa.
+
+**Cuando no hay proyección posible, la pantalla no se apaga.** El motor pide 6
+observaciones (`MIN_OBS`) y MIXTA tiene 2. Antes esa rama era un `st.warning` +
+`st.line_chart` + `st.stop()`: se perdían el título, las métricas, la tabla, la
+descarga y toda la identidad visual. Ahora hay una vista histórica hermana de la
+gráfica principal —misma paleta, mismos ejes, mismas etiquetas directas—, con:
+
+- El **eje completo** 2014-2015 → 2024-2025, para conservar la escala. El tramo
+  sin dato es una **zona gris rotulada "no reportado por separado"**: una línea
+  en cero afirmaría que había cero alumnos, y un hueco mudo dejaría al lector
+  adivinando cuál de las dos cosas es.
+- La **serie padre en gris detrás**, por los 11 ciclos. Para MIXTA es Online; para
+  DUAL, el total de todas las modalidades (de dónde salieron sus 196 alumnos no
+  está documentado en la fuente y no se inventa).
+- Sólo las **métricas que existen**: último valor, variación contra el ciclo
+  anterior y participación dentro del padre. Sin CAGR, sin MAPE/MASE y sin
+  semáforo de confiabilidad, que para dos observaciones no significan nada.
+- **Tabla y descarga CSV/Excel**, que también se perdían.
+
+**Proyección indirecta por participación.** Donde el volumen aguanta, la vista
+además deriva: proyecta al **padre** —serie continua, motor y calibración ya
+validados— y lo reparte por la participación observada del hijo. El share va
+**fijo** (promedio de las observaciones disponibles), nunca extrapolado: con dos
+puntos, "la tendencia del share" es la pendiente del error de medición. El
+intervalo hereda el del padre y se ensancha por la incertidumbre del reparto,
+emparejando el peor caso de cada uno — sobre-cubre, que con dos observaciones es
+el lado correcto en el que equivocarse.
+
+Se aplica sólo si se cumplen los tres umbrales (`pronostico.py`), y **no se baja
+`MIN_OBS` ni se fuerza al ensemble a correr con dos puntos**:
+
+| Umbral | Valor | Por qué |
+|---|---|---|
+| Volumen del hijo, último ciclo | ≥ 1,000 | 10× el umbral con el que el propio motor ya llama "volumen bajo" a un segmento: aquí se componen dos incertidumbres |
+| Dispersión del share (rango / media) | ≤ 15% | Separa limpio los casos reales |
+| Padre proyectable | sí | Si el padre no da, no hay de dónde derivar |
+
+Qué pasa cada nivel con MIXTA, que es para lo que se diseñó el umbral:
+
+| Corte | Share 2023-24 → 2024-25 | Dispersión | Volumen | Resultado |
+|---|---|---|---|---|
+| Nacional | 44.9% → 45.0% | 0.2% | 243,285 | **deriva** |
+| Licenciatura | 49.1% → 49.9% | 1.6% | 210,415 | **deriva** |
+| Maestría | 24.6% → 24.1% | 2.1% | 22,324 | **deriva** |
+| Técnico Superior | 45.7% → 49.1% | 7.2% | 988 | rechaza (volumen) |
+| Doctorado | 47.6% → **34.8%** | 31% | 4,472 | rechaza (share) |
+| Especialidad | 63.3% → **46.7%** | 30% | 5,086 | rechaza (share) |
+
+El patrón es el que había que respetar: el share es estable donde hay volumen e
+inestable donde no. Repartir la proyección del padre con un número que se mueve
+13 o 17 puntos de un ciclo al otro sería inventarse la mitad del resultado, así
+que Doctorado y Especialidad se rechazan con el motivo escrito en pantalla. Lo
+que sí deriva se etiqueta **"derivado"** en todas partes —gráfica, tarjetas y la
+columna `tipo` del CSV/Excel—, nunca "proyección", y **no lleva semáforo de
+confiabilidad**: no tiene backtest propio y el del padre no es el suyo.
 
 **Zonas metropolitanas.** Delimitación *Metrópolis de México 2020*: 15 zonas.
 De los 149 municipios que las integran, 110 tienen oferta de educación superior
@@ -370,7 +467,10 @@ gana a repetir el último valor, y lo avisa en pantalla.
 
 Los cortes muy desagregados (un municipio chico × una modalidad × un área
 específica) tienen series demasiado ralas para proyectar; la app avisa y en la
-descarga masiva se filtran con el mínimo de alumnos.
+descarga masiva se filtran con el mínimo de alumnos. Cuando el corte corto es
+una modalidad de reporte nuevo, en vez del aviso a secas sale la vista histórica
+con su serie padre y, si el volumen aguanta, la derivada por participación
+—ver arriba—.
 
 ## Archivos
 
@@ -382,7 +482,7 @@ descarga masiva se filtran con el mínimo de alumnos.
 | `rezago.py` | IRS: diagnóstico transversal y la corrección que se midió y se descartó |
 | `contexto.py` | La lectura externa que sí se muestra. Documenta por qué no entra al número |
 | `concordancia.py` | Correspondencia entre los dos catálogos ANUIES → 69 grupos comparables |
-| `taxonomia.py` | Red de seguridad: recorte de series y detección de quiebres de catálogo |
+| `taxonomia.py` | Los dos quiebres de la fuente (catálogo 2017, modalidad 2023): recorte, avisos y detección |
 | `validacion_externos.py` | Backtest anclaje contra nada. Genera la tabla de arriba |
 | `validacion_covid.py` | Backtest del flag COVID y de la limpieza del outlier. Genera la tabla de arriba |
 | `zonas.py` | Catálogo de zonas metropolitanas (Metrópolis de México 2020) |

@@ -19,8 +19,8 @@ import drivers
 import metodos
 import pronostico as pr
 import taxonomia as tax
-from comun import (CORTES, METRICAS, SIN_ZM, aplicar_filtros, cargar,
-                   opciones)
+from comun import (AYUDA_MODALIDAD, CORTES, METRICAS, SIN_ZM, aplicar_filtros,
+                   cargar, normalizar_modalidades, opciones, opciones_modalidad)
 
 st.set_page_config(page_title="Descarga masiva", page_icon="📦", layout="wide")
 st.title("Descarga masiva de tendencias")
@@ -76,13 +76,32 @@ filtros = {}
 niveles = f1.multiselect("Nivel educativo", opciones(df, "Nivel_educativo"))
 if niveles and "Nivel_educativo" not in dims:
     filtros["Nivel_educativo"] = niveles
-modalidades = f2.multiselect("Modalidad", opciones(df, "Modalidad"),
-                             help="Vacio = todas. Se pueden combinar varias.")
-if modalidades and "Modalidad" not in dims:
-    filtros["Modalidad"] = modalidades
+modalidades = f2.multiselect("Modalidad", opciones_modalidad(df),
+                             help=AYUDA_MODALIDAD)
+# Igual que en la pagina principal: al filtro van las modalidades BASE, asi que
+# el atajo compuesto y marcar las dos casillas producen el mismo corte.
+mods_base = normalizar_modalidades(modalidades)
+if mods_base and "Modalidad" not in dims:
+    filtros["Modalidad"] = mods_base
 campos = f3.multiselect("Campo de conocimiento", opciones(df, "Campo"))
 if campos and not {"Campo", "Grupo_comparable"} & set(dims):
     filtros["Campo"] = campos
+
+# Los dos avisos de modalidad de la pagina principal, aqui tambien. El primero
+# depende de lo que se filtro; el segundo, de desagregar POR modalidad, que es
+# donde el lote produce filas que no son comparables entre si.
+nota_mod = tax.nota_modalidad(mods_base) if "Modalidad" not in dims else None
+if nota_mod:
+    st.warning(nota_mod)
+if "Modalidad" in dims:
+    st.warning(
+        "**Desagregar por modalidad no da cuatro series comparables entre si.** "
+        "MIXTA y DUAL existen desde 2023-2024 y son 2 ciclos: no llegan al minimo "
+        f"de {pr.MIN_OBS} para proyectar, asi que no van a aparecer en el Excel. Y "
+        "NO ESCOLARIZADA sola si aparece, pero su caida de -40.2% en 2023-2024 es "
+        "el desglose de MIXTA, no mercado (viene marcada en la columna `avisos`). "
+        "Para la serie de online comparable, quita Modalidad de la desagregacion y "
+        "ponla como filtro fijo con la opcion *Online (no escolarizada + mixta)*.")
 
 minimo = st.number_input(
     "Ignorar combinaciones con menos de N alumnos en el ultimo ciclo",
@@ -187,15 +206,28 @@ if st.button("Generar proyecciones", type="primary"):
                                             if c.get("rezago") else None),
                 })
         fila["ciclos_con_datos"] = len(serie)
-        quiebre = tax.quiebre_de_catalogo(serie)
+        # Los dos cruces conocidos, no solo el del catalogo de areas: un corte
+        # de NO ESCOLARIZADA sin MIXTA se rompe en 2022->2023. Ver taxonomia.py.
         fila["avisos"] = " | ".join(
-            res.avisos + [a for a in (aviso_catalogo,
-                                      quiebre[1] if quiebre else None) if a])
+            res.avisos + [a for a in [aviso_catalogo] if a]
+            + [texto for _, texto in tax.quiebres(serie)])
         filas.append(fila)
 
     barra.empty()
     if not filas:
-        st.warning("Ninguna combinacion tenia serie suficiente para proyectar.")
+        # Con un filtro fijo de MIXTA o DUAL esto pasa SIEMPRE, y decir solo
+        # "ninguna combinacion" deja al usuario buscando el error en la
+        # desagregacion cuando el problema es el filtro.
+        nuevas = set(mods_base or []) & tax.MODALIDADES_NUEVAS
+        if nuevas and set(mods_base) <= tax.MODALIDADES_NUEVAS:
+            st.warning(
+                f"Ninguna combinacion tenia serie suficiente para proyectar, y con "
+                f"{' y '.join(sorted(nuevas))} como filtro fijo no la va a tener: "
+                f"esa modalidad se reporta por separado desde 2023-2024, o sea 2 "
+                f"ciclos contra los {pr.MIN_OBS} que pide el motor. Para la serie "
+                f"comparable usa *Online (no escolarizada + mixta)*.")
+        else:
+            st.warning("Ninguna combinacion tenia serie suficiente para proyectar.")
         st.stop()
 
     salida = pd.DataFrame(filas)
@@ -204,10 +236,14 @@ if st.button("Generar proyecciones", type="primary"):
                f"sobre {' × '.join(dim_nombres)}.")
     if descartadas_serie:
         una = descartadas_serie == 1
+        motivo = ("serie es demasiado corta o dispersa para proyectarla "
+                  f"(el minimo son {pr.MIN_OBS} ciclos)")
+        if "Modalidad" in dims:
+            motivo += ("; con Modalidad desagregada eso incluye siempre a MIXTA y "
+                       "DUAL, que arrancan en 2023-2024")
         st.caption(f"{descartadas_serie:,} combinacion{'' if una else 'es'} "
                    f"cumpli{'o' if una else 'eron'} el minimo de alumnos pero su "
-                   f"serie es demasiado corta o dispersa para proyectarla, y no "
-                   f"{'esta' if una else 'estan'} en la tabla.")
+                   f"{motivo}, y no {'esta' if una else 'estan'} en la tabla.")
 
     st.dataframe(salida, use_container_width=True, hide_index=True)
 

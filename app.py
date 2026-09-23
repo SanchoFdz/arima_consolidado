@@ -13,24 +13,52 @@ import contexto as ctx
 import metodos
 import taxonomia as tax
 import pronostico as pr
-from comun import (CORTES, METRICAS, SIN_ZM, aplicar_filtros, cargar,
-                   etiqueta_modalidades, opciones)
+from comun import (AYUDA_MODALIDAD, CORTES, METRICAS, MODALIDAD_ONLINE, SIN_ZM,
+                   aplicar_filtros, cargar, etiqueta_modalidades,
+                   normalizar_modalidades, opciones, opciones_modalidad)
 
 st.set_page_config(page_title="Tendencias de Nuevo Ingreso", page_icon="📈", layout="wide")
 
 
 @st.cache_data(show_spinner="Calculando proyeccion...")
 def serie_y_modelo(df, filtros, metrica, horizonte, nivel, motor):
+    """Serie del corte, su recorte, y la proyeccion si la serie da para una.
+
+    Se devuelve tambien la serie SIN recortar, con sus ceros de punta. Ese es el
+    eje completo 2014-2015 … 2024-2025 y la vista historica lo necesita: sin el
+    no hay forma de dibujar "aqui no habia dato" a escala, solo de dibujar dos
+    puntos sueltos como si fueran toda la historia del corte.
+    """
     sub = aplicar_filtros(df, filtros)
-    serie = sub.groupby("anio", observed=True)[metrica].sum().sort_index()
-    if serie.empty:
-        return serie, None, None
-    # El catalogo ANUIES cambio en 2017-2018 y las subareas y areas especificas
-    # no estan homologadas: una categoria que solo existe en uno de los dos
-    # catalogos trae ceros en las puntas que no son ceros de mercado. Se recortan
-    # antes de proyectar, porque el extrapolador no sabe distinguirlos.
-    serie, aviso_catalogo = tax.recortar(serie)
-    return serie, pr.proyectar(serie, horizonte, nivel, motor), aviso_catalogo
+    completa = sub.groupby("anio", observed=True)[metrica].sum().sort_index()
+    if completa.empty:
+        return completa, completa, None, None
+    # Dos quiebres distintos producen ceros de punta que no son ceros de mercado:
+    # el cambio de catalogo de areas de 2017-2018 y el desglose de modalidad de
+    # 2023-2024. Se recortan antes de proyectar, porque el extrapolador no sabe
+    # distinguir un cero de "no existia". Ver taxonomia.py.
+    serie, aviso_recorte = tax.recortar(completa)
+    return completa, serie, pr.proyectar(serie, horizonte, nivel, motor), aviso_recorte
+
+
+@st.cache_data(show_spinner=False)
+def serie_del_padre(df, filtros, mods_padre, metrica):
+    """Serie continua de la que salio un corte de modalidad nueva.
+
+    Mismo corte en todo lo demas --- geografia, nivel, disciplina ---, cambiando
+    solo el filtro de Modalidad. `mods_padre = None` significa quitarlo: el
+    padre es el total de todas las modalidades del corte.
+    """
+    otros = {k: v for k, v in filtros.items() if k != "Modalidad"}
+    if mods_padre:
+        otros["Modalidad"] = list(mods_padre)
+    sub = aplicar_filtros(df, otros)
+    return sub.groupby("anio", observed=True)[metrica].sum().sort_index()
+
+
+@st.cache_data(show_spinner=False)
+def derivada_por_share(hijo, padre, horizonte, nivel, motor, etiqueta_padre):
+    return pr.derivar_por_share(hijo, padre, horizonte, nivel, motor, etiqueta_padre)
 
 
 def tabla_salida(res, metrica_nombre):
@@ -56,6 +84,35 @@ def tabla_salida(res, metrica_nombre):
     return salida
 
 
+def tabla_historica(serie, metrica_nombre, derivada=None):
+    """La misma tabla, para un corte que no se puede proyectar directo.
+
+    Antes esta rama no producia tabla ninguna: la app soltaba un `st.line_chart`
+    y paraba, asi que un corte de MIXTA no tenia ni tabla ni descarga. Las filas
+    historicas existen igual, y si hay derivada se anexa marcada como tal --- la
+    columna `tipo` dice "derivado", nunca "proyeccion", para que quien abra el
+    CSV sin haber visto la pantalla no la confunda con una proyeccion directa.
+    """
+    partes = [pd.DataFrame({
+        "ciclo": [f"{a}-{a + 1}" for a in serie.index],
+        "tipo": "historico",
+        metrica_nombre: serie.values.astype(float),
+        "inferior": float("nan"),
+        "superior": float("nan"),
+    })]
+    if derivada is not None:
+        partes.append(pd.DataFrame({
+            "ciclo": derivada.proyeccion["ciclo"],
+            "tipo": "derivado",
+            metrica_nombre: derivada.proyeccion["pronostico"].round(0),
+            "inferior": derivada.proyeccion["inferior"].round(0),
+            "superior": derivada.proyeccion["superior"].round(0),
+        }))
+    salida = pd.concat(partes, ignore_index=True)
+    salida["var_%"] = (salida[metrica_nombre].pct_change() * 100).round(2)
+    return salida
+
+
 # Paleta: un solo hue (azul slot 1) validado contra la superficie clara. Observado
 # y proyectado son la MISMA serie en dos estados, asi que comparten color y se
 # distinguen por trazo y por etiqueta directa, no por un segundo hue.
@@ -66,6 +123,12 @@ TINTA = "#0b0b0b"
 TINTA_SUAVE = "#52514e"
 GRIS_TENUE = "#e8e8e5"
 ZONA_FUTURA = "rgba(11, 11, 10, 0.028)"
+# Serie padre y tramo no reportado, solo para la vista historica. El gris de la
+# serie padre es mas oscuro que GRIS_TENUE (que es el de la retícula) porque
+# tiene que leerse como un trazo de datos, no como parte del fondo; y mas claro
+# que TINTA_SUAVE porque es contexto detras del azul, no un segundo protagonista.
+GRIS_PADRE = "#b8b7b2"
+ZONA_SIN_DATO = "rgba(11, 11, 10, 0.045)"
 
 
 def formato_corto(v):
@@ -122,10 +185,7 @@ def grafica(res, etiqueta, metrica_nombre, confianza):
 
     # Etiquetas directas: nombran cada area en el grafico, en vez de una caja de
     # leyenda que obliga a emparejar colores.
-    tope = max(list(res.historico.values) + sup)
-    piso = min(list(res.historico.values) + inf)
-    holgura = (tope - piso) or 1
-
+    #
     # Se agregan una por una: pasarlas juntas a update_layout las fusiona con la
     # anotacion que add_vrect ya dejo puesta, y la primera se pierde.
     anotaciones = [
@@ -173,6 +233,310 @@ def grafica(res, etiqueta, metrica_nombre, confianza):
         fig.add_annotation(**a)
     return fig
 
+
+def grafica_historica(serie, anios_eje, etiqueta, metrica_nombre, padre=None,
+                      etiqueta_padre=None, derivada=None, confianza=80):
+    """Hermana de `grafica()` para los cortes que no se pueden proyectar directo.
+
+    Misma paleta, misma tipografia, mismos ejes, mismas etiquetas directas. Es
+    deliberadamente una funcion hermana y no un `st.line_chart`: lo que cambia
+    es que no hay proyeccion propia que dibujar, no que el corte merezca una
+    pantalla de segunda. Antes esta rama perdia titulo, metricas, tabla,
+    descarga y todo el diseño por no tener seis observaciones.
+
+    Tres decisiones de lectura:
+
+      * **El eje va completo**, 2014-2015 a 2024-2025, aunque la serie tenga dos
+        puntos. Recortarlo a los dos ciclos con dato dibuja un segmento que
+        ocupa toda la pantalla y sugiere una historia larga que no existe.
+      * **El tramo sin dato es una zona gris rotulada**, no una linea en cero ni
+        un hueco mudo. Una linea en cero afirma que habia cero alumnos, que es
+        falso; un hueco deja al lector suponiendo cual de las dos cosas es.
+      * **El padre va detras en gris**, por los 11 ciclos. Es lo que contesta de
+        donde salio la serie corta y que proporcion ocupa, que es justo la
+        lectura que la modalidad nueva necesita.
+    """
+    hist_x = [f"{a}-{a + 1}" for a in anios_eje]
+    proy_x = list(derivada.proyeccion["ciclo"]) if derivada is not None else []
+    eje = hist_x + proy_x
+
+    vivos = [int(a) for a in serie.index]
+    i_ini = anios_eje.index(vivos[0])
+    prop_x = [f"{a}-{a + 1}" for a in vivos]
+
+    fig = go.Figure()
+
+    # Zona sin dato: solo si de verdad falta tramo por la izquierda.
+    if i_ini > 0:
+        fig.add_vrect(
+            x0=-0.5, x1=i_ini - 0.5, fillcolor=ZONA_SIN_DATO,
+            line_width=0, layer="below",
+            annotation_text="<b>No reportado por separado</b><br>"
+                            f"{hist_x[0]} a {hist_x[i_ini - 1]}",
+            annotation_position="top left",
+            annotation=dict(font=dict(size=11, color=TINTA_SUAVE), yshift=8))
+
+    # Serie padre: el contexto, detras y en gris.
+    if padre is not None and not padre.empty:
+        padre_x = [f"{a}-{a + 1}" for a in padre.index]
+        fig.add_trace(go.Scatter(
+            x=padre_x, y=padre.values, mode="lines", name=etiqueta_padre or "Agregado",
+            line=dict(color=GRIS_PADRE, width=2),
+            hovertemplate="%{x}<br><b>%{y:,.0f}</b> " + (etiqueta_padre or "agregado")
+                          + "<extra></extra>"))
+
+    # Derivada, si la hay: mismo lenguaje que la proyeccion directa (punteado y
+    # banda), pero rotulada "derivado" en todas partes.
+    if derivada is not None:
+        puente_x = [prop_x[-1]] + proy_x
+        puente_y = [float(serie.iloc[-1])] + list(derivada.proyeccion["pronostico"])
+        inf = [float(serie.iloc[-1])] + list(derivada.proyeccion["inferior"])
+        sup = [float(serie.iloc[-1])] + list(derivada.proyeccion["superior"])
+        fig.add_vrect(
+            x0=len(hist_x) - 1, x1=len(eje) - 0.5, fillcolor=ZONA_FUTURA,
+            line_width=0, layer="below",
+            annotation_text=f"<b>Derivado</b> {proy_x[0]} a {proy_x[-1]}",
+            annotation_position="top right",
+            annotation=dict(font=dict(size=11, color=TINTA_SUAVE), yshift=8))
+        fig.add_trace(go.Scatter(
+            x=puente_x + puente_x[::-1], y=sup + inf[::-1], mode="lines",
+            fill="toself", fillcolor=AZUL_TENUE, line=dict(width=0),
+            hoverinfo="skip", showlegend=False, name="Intervalo"))
+        fig.add_trace(go.Scatter(
+            x=puente_x, y=puente_y, mode="lines", name="Derivado",
+            line=dict(color=AZUL, width=2, dash="dot"),
+            hovertemplate="%{x}<br><b>%{y:,.0f}</b> derivado<extra></extra>"))
+
+    fig.add_trace(go.Scatter(
+        x=prop_x, y=serie.values, mode="lines", name="Observado",
+        line=dict(color=AZUL, width=2), marker=dict(color=AZUL, size=7),
+        hovertemplate="%{x}<br><b>%{y:,.0f}</b> observado<extra></extra>"))
+
+    # Con dos observaciones la linea es un segmento: sin marcadores no se
+    # distingue de una anotacion.
+    fig.add_trace(go.Scatter(
+        x=prop_x, y=serie.values, mode="markers", showlegend=False,
+        hoverinfo="skip",
+        marker=dict(color=AZUL, size=9, line=dict(color=SURFACE, width=2))))
+
+    valores = list(serie.values) + (list(padre.values) if padre is not None else [])
+    if derivada is not None:
+        valores += list(derivada.proyeccion["superior"])
+    tope, piso = max(valores), min(valores + [0.0])
+
+    anotaciones = [
+        dict(x=prop_x[-1], y=float(serie.iloc[-1]),
+             text=f"<b>{formato_corto(float(serie.iloc[-1]))}</b>",
+             showarrow=False, yshift=18, xshift=-14,
+             font=dict(size=12, color=AZUL)),
+    ]
+    if padre is not None and not padre.empty:
+        # A un tercio del eje, donde la serie corta todavia no existe: ahi el
+        # gris esta solo y la etiqueta no pisa nada.
+        i = max(len(padre) // 3, 0)
+        anotaciones.append(dict(
+            x=f"{int(padre.index[i])}-{int(padre.index[i]) + 1}",
+            y=float(padre.iloc[i]),
+            text=f"<b>{etiqueta_padre}</b><br>"
+                 "<span style='font-size:10px'>serie de referencia, 11 ciclos</span>",
+            showarrow=False, yshift=20,
+            font=dict(size=11, color=TINTA_SUAVE), align="left"))
+    if derivada is not None:
+        anotaciones.append(dict(
+            x=proy_x[-1], y=float(derivada.proyeccion["pronostico"].iloc[-1]),
+            text=f"<b>{formato_corto(float(derivada.proyeccion['pronostico'].iloc[-1]))}</b>"
+                 f"<br><span style='font-size:10px'>derivado · banda {confianza}%</span>",
+            showarrow=False, yshift=-26, font=dict(size=12, color=AZUL)))
+
+    fig.update_xaxes(categoryorder="array", categoryarray=eje,
+                     range=[-0.5, len(eje) - 0.5],
+                     showgrid=False, showline=True, linecolor=GRIS_TENUE,
+                     ticks="outside", tickcolor=GRIS_TENUE, ticklen=4,
+                     tickfont=dict(size=11, color=TINTA_SUAVE), tickangle=-45)
+    fig.update_yaxes(showgrid=True, gridcolor=GRIS_TENUE, gridwidth=1,
+                     zeroline=False, showline=False,
+                     range=[piso, tope * 1.12],
+                     tickfont=dict(size=11, color=TINTA_SUAVE),
+                     tickformat="~s", nticks=7)
+
+    fig.update_layout(
+        height=470, margin=dict(l=10, r=30, t=92, b=90),
+        paper_bgcolor=SURFACE, plot_bgcolor=SURFACE,
+        title=dict(text=f"<b>{metrica_nombre}</b><br>"
+                        f"<span style='font-size:13px;color:{TINTA_SUAVE}'>{etiqueta}</span>",
+                   font=dict(size=17, color=TINTA), x=0, xanchor="left", y=0.96),
+        showlegend=False, hovermode="x unified",
+        hoverlabel=dict(bgcolor=SURFACE, bordercolor=GRIS_TENUE,
+                        font=dict(color=TINTA, size=12)),
+        font=dict(family="system-ui, -apple-system, Segoe UI, sans-serif"),
+    )
+    for a in anotaciones:
+        fig.add_annotation(**a)
+    return fig
+
+
+def cta_sin_proyeccion(mods_base, mods_padre, etiqueta_padre, n_ciclos):
+    """Que hacer en vez de quedarse mirando una serie de dos puntos.
+
+    Va donde en la proyeccion directa va la banda "Proyección": es el lugar de
+    la pantalla al que se va el ojo a buscar el numero, y decir ahi "no hay" sin
+    decir "pide esto otro" es dejar el trabajo a medias.
+    """
+    sel = set(mods_base or [])
+    falta = f"Son {n_ciclos} ciclos y el mínimo para proyectar son {pr.MIN_OBS}"
+    if sel == {"MIXTA"}:
+        return (f"**Para proyectar esta matrícula, pide «{MODALIDAD_ONLINE}»** en el "
+                f"filtro de Modalidad —o marca NO ESCOLARIZADA y MIXTA, que es lo "
+                f"mismo—. {falta}, porque ANUIES desglosó MIXTA hasta 2023-2024. "
+                f"Online sí tiene los 11 ciclos y es la única serie de modalidad "
+                f"comparable: 437,882 → 475,083 → 540,301 a nivel nacional.")
+    if mods_padre is None and etiqueta_padre:
+        return (f"**Para proyectar, quita el filtro de Modalidad** y trabaja sobre "
+                f"{etiqueta_padre.lower()}. {falta}: esta modalidad se reporta por "
+                f"separado desde 2023-2024 y no hay serie previa que extrapolar.")
+    return (f"**No hay proyección para este corte.** {falta}. Amplía el corte "
+            f"—menos filtros, o un nivel geográfico más grueso— y vuelve a pedirla.")
+
+
+def vista_historica(df, filtros, mods_base, serie, serie_completa, metrica,
+                    metrica_nombre, segmento, horizonte, nivel, motor, confianza,
+                    nombre_archivo):
+    """Vista de primera clase para un corte sin proyeccion directa.
+
+    Lo que habia antes era `st.warning` + `st.line_chart` + `st.stop()`: se
+    perdian titulo, metricas, tabla, descarga y toda la identidad visual, y la
+    pantalla terminaba diciendo menos de lo que los datos dan. Aqui se conserva
+    todo lo que si se puede calcular y se quita lo que no --- CAGR sobre dos
+    puntos, MAPE, MASE y semaforo de confiabilidad no existen para este corte, y
+    ponerlos en "n/d" es llenar la pantalla de tarjetas vacias.
+    """
+    padre_spec = tax.padre_de_modalidades(mods_base)
+    mods_padre, etiqueta_padre, padre = None, None, None
+    if padre_spec:
+        mods_padre, etiqueta_padre = padre_spec
+        padre = serie_del_padre(df, filtros, tuple(mods_padre or ()), metrica)
+        if padre.empty or padre.sum() == 0:
+            padre, etiqueta_padre = None, None
+
+    derivada, motivo = None, None
+    if padre is not None:
+        derivada, motivo = derivada_por_share(serie, padre, horizonte, nivel,
+                                              motor, etiqueta_padre)
+
+    # -------------------------------------------------------------- metricas
+    ultimo_anio = int(serie.index[-1])
+    cols = st.columns(3 if padre is not None else 2)
+    cols[0].metric(f"{metrica_nombre} {ultimo_anio}-{ultimo_anio + 1}",
+                   f"{int(serie.iloc[-1]):,}")
+    if len(serie) >= 2:
+        var = (float(serie.iloc[-1]) / float(serie.iloc[-2]) - 1) * 100
+        cols[1].metric("Variación vs ciclo anterior", f"{var:+.1f}%",
+                       help=f"Contra {int(serie.index[-2])}-{int(serie.index[-2]) + 1}. "
+                            "Es la única variación que existe: no hay serie previa "
+                            "con la que construir un CAGR.")
+    else:
+        cols[1].metric("Ciclos con dato", f"{len(serie)}")
+    if padre is not None:
+        share = float(serie.iloc[-1]) / float(padre.loc[ultimo_anio])
+        # Dos decimales por debajo de 1%: DUAL es 196 de 1,670,298, y redondeado
+        # a una decima sale "0.0%", que se lee como "no hay" y no como "es chico".
+        cols[2].metric(f"Participación en {etiqueta_padre.split(' (')[0].lower()}",
+                       f"{share * 100:.1f}%" if share >= 0.01 else f"{share * 100:.2f}%",
+                       help=f"{etiqueta_padre}: {int(padre.loc[ultimo_anio]):,} en "
+                            f"{ultimo_anio}-{ultimo_anio + 1}.")
+
+    st.plotly_chart(
+        grafica_historica(serie, [int(a) for a in serie_completa.index], segmento,
+                          metrica_nombre, padre, etiqueta_padre, derivada, confianza),
+        use_container_width=True)
+
+    st.info(cta_sin_proyeccion(mods_base, mods_padre, etiqueta_padre, len(serie)))
+
+    # ------------------------------------------------------- proyeccion derivada
+    if derivada is not None:
+        st.markdown("---")
+        st.subheader("Proyección derivada por participación")
+        st.caption(
+            f"No es una proyección de este corte: es la proyección de "
+            f"**{etiqueta_padre}** —serie continua de 11 ciclos, motor y calibración "
+            f"ya validados— repartida por la participación observada de este corte "
+            f"dentro de ella. Por eso no lleva semáforo de confiabilidad ni MAPE: no "
+            f"tiene backtest propio, y el del padre no es el suyo.")
+        u = derivada.proyeccion.iloc[-1]
+        e1, e2, e3 = st.columns(3)
+        e1.metric(f"Derivado {u['ciclo']}", f"{int(u['pronostico']):,}",
+                  help="Punto del padre por la participación fija.")
+        e2.metric(f"Banda {confianza}%",
+                  f"{int(u['inferior']):,} – {int(u['superior']):,}",
+                  help="El intervalo del padre, ensanchado por la incertidumbre del "
+                       "reparto. Es la envolvente externa: empareja el peor caso del "
+                       "padre con el peor caso de la participación.")
+        e3.metric("Participación usada", f"{derivada.share * 100:.1f}%",
+                  f"banda {derivada.banda_share[0] * 100:.1f}–"
+                  f"{derivada.banda_share[1] * 100:.1f}%",
+                  delta_color="off",
+                  help="Promedio de los ciclos observados: "
+                       + ", ".join(f"{int(a)}-{int(a) + 1} {s * 100:.1f}%"
+                                   for a, s in derivada.shares_observados.items())
+                       + ". Fija, no extrapolada: con dos observaciones, la "
+                         "tendencia del share es la pendiente del ruido.")
+    elif motivo:
+        st.caption(f"**Sin proyección derivada.** {motivo}")
+
+    # --------------------------------------------------- tabla y descargas
+    salida = tabla_historica(serie, metrica_nombre, derivada)
+    st.markdown("---")
+    izq, der = st.columns([3, 2])
+    with izq:
+        st.subheader("Serie completa")
+        st.dataframe(salida, use_container_width=True, hide_index=True)
+    with der:
+        st.subheader("Qué trae la descarga")
+        st.write(f"**{len(serie)} ciclos históricos**"
+                 + (f" y {len(derivada.proyeccion)} derivados de {etiqueta_padre}."
+                    if derivada is not None else ", sin proyección."))
+        st.caption(
+            "Las filas derivadas van marcadas `derivado` en la columna `tipo`, nunca "
+            "`proyeccion`: quien abra el archivo sin haber visto esta pantalla tiene "
+            "que poder distinguirlas.")
+        st.download_button(
+            "Descargar CSV", salida.to_csv(index=False).encode("utf-8-sig"),
+            file_name=f"historico_{metrica}_{nombre_archivo}.csv",
+            mime="text/csv", use_container_width=True)
+        buffer = BytesIO()
+        with pd.ExcelWriter(buffer, engine="openpyxl") as xls:
+            salida.to_excel(xls, index=False, sheet_name="historico")
+            ficha = {
+                "segmento": segmento,
+                "metrica": metrica_nombre,
+                "ciclos_con_datos": len(serie),
+                "proyeccion_directa": "no (serie mas corta que "
+                                      f"{pr.MIN_OBS} ciclos)",
+                "serie_padre": etiqueta_padre,
+                "tipo_de_proyeccion": "derivada por participación"
+                                      if derivada is not None else "ninguna",
+            }
+            if derivada is not None:
+                ficha.update({
+                    "participacion_usada_%": round(derivada.share * 100, 2),
+                    "participacion_banda_min_%": round(derivada.banda_share[0] * 100, 2),
+                    "participacion_banda_max_%": round(derivada.banda_share[1] * 100, 2),
+                    "dispersion_share_%": round(derivada.dispersion * 100, 1),
+                    "motor_del_padre": derivada.padre.motor,
+                    "nivel_intervalo_%": confianza,
+                    "CAGR_proyectado_del_padre_%": (round(derivada.cagr_padre, 2)
+                                                    if derivada.cagr_padre is not None
+                                                    else None),
+                })
+            elif motivo:
+                ficha["motivo_sin_derivada"] = motivo
+            pd.DataFrame({"campo": list(ficha), "valor": list(ficha.values())}
+                         ).to_excel(xls, index=False, sheet_name="ficha")
+        st.download_button(
+            "Descargar Excel", buffer.getvalue(),
+            file_name=f"historico_{metrica}_{nombre_archivo}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True)
 
 
 @st.cache_data(show_spinner=False)
@@ -251,12 +615,14 @@ if niveles:
     filtros["Nivel_educativo"] = niveles
 
 modalidades = st.sidebar.multiselect(
-    "Modalidad", opciones(df, "Modalidad"),
-    help="Vacio = todas las modalidades sumadas. Se pueden combinar varias: "
-         "marcar NO ESCOLARIZADA y MIXTA a la vez es lo que antes era el preset "
-         "'Online'.")
-if modalidades:
-    filtros["Modalidad"] = modalidades
+    "Modalidad", opciones_modalidad(df), help=AYUDA_MODALIDAD)
+# Al filtro se le mandan siempre las modalidades BASE, no lo que se marco. Asi
+# elegir el atajo compuesto y marcar las dos casillas producen literalmente el
+# mismo `filtros`, o sea la misma clave de cache y el mismo numero: no son dos
+# caminos que "dan lo mismo", son el mismo camino.
+mods_base = normalizar_modalidades(modalidades)
+if mods_base:
+    filtros["Modalidad"] = mods_base
 
 # Disciplina: dos niveles, los dos con serie continua de 11 ciclos. No son las
 # columnas crudas del panel, son los grupos comparables de concordancia.py.
@@ -318,27 +684,39 @@ st.markdown(
     'zonas metropolitanas según Metrópolis de México 2020</div>',
     unsafe_allow_html=True)
 
-serie, res, aviso_catalogo = serie_y_modelo(df, filtros, metrica, horizonte,
-                                            confianza / 100, motor)
-if aviso_catalogo:
-    st.info(aviso_catalogo)
+serie_completa, serie, res, aviso_recorte = serie_y_modelo(
+    df, filtros, metrica, horizonte, confianza / 100, motor)
+if aviso_recorte:
+    st.info(aviso_recorte)
 
 if serie.empty or serie.sum() == 0:
     st.warning("No hay datos para esta combinacion de filtros.")
     st.stop()
-if res is None:
-    st.warning("La serie es demasiado corta o dispersa para proyectarla.")
-    st.line_chart(serie)
-    st.stop()
 
 # El corte mas fino primero: si filtraste una carrera, eso es lo que estas
 # viendo, y ponerle de titulo el campo entero hace creer que es otra cosa.
+# Se arma antes de bifurcar porque la vista sin proyeccion tambien lleva titulo:
+# antes se calculaba despues del `st.stop()` y por eso esa rama no tenia ninguno.
 etiqueta_mod = etiqueta_modalidades(modalidades)
 segmento = " · ".join([etiqueta_geo] +
                       ([", ".join(niveles)] if niveles else []) +
                       ([etiqueta_mod] if etiqueta_mod else []) +
                       ([", ".join(grupos)] if grupos else
                        [", ".join(campos)] if campos else []))
+nombre_archivo = etiqueta_geo[:30].replace(" ", "_")
+
+# Aviso de seleccion, no de datos: NO ESCOLARIZADA sin MIXTA no es comparable en
+# los 11 ciclos aunque su serie se vea perfectamente proyectable, porque el -40%
+# de 2023-2024 es el desglose de MIXTA. Gemelo de `nota_trasvase` para las areas.
+nota_mod = tax.nota_modalidad(mods_base)
+if nota_mod:
+    st.warning(nota_mod)
+
+if res is None:
+    vista_historica(df, filtros, mods_base, serie, serie_completa, metrica,
+                    metrica_nombre, segmento, horizonte, confianza / 100, motor,
+                    confianza, nombre_archivo)
+    st.stop()
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric(f"{metrica_nombre} 2024-2025", f"{int(serie.iloc[-1]):,}")
@@ -355,12 +733,12 @@ c4.metric("Confiabilidad", SEMAFORO[res.confiabilidad],
 for aviso in res.avisos:
     st.warning(aviso)
 
-# Red de seguridad: los grupos comparables son continuos por construccion, pero
-# un cruce (grupo x zona chica x modalidad) puede seguir teniendo un salto raro
-# en 2017. Si lo tiene, se dice.
-quiebre = tax.quiebre_de_catalogo(serie)
-if quiebre:
-    severidad, texto = quiebre
+# Red de seguridad sobre la serie que de verdad esta en pantalla. Se miran los
+# dos cruces conocidos: 2016->2017 (catalogo de areas) y 2022->2023 (desglose de
+# modalidad). Los grupos comparables son continuos por construccion, pero un
+# cruce (grupo x zona chica x modalidad) puede seguir teniendo un salto raro en
+# cualquiera de los dos. Si lo tiene, se dice.
+for severidad, texto in tax.quiebres(serie):
     (st.warning if severidad == "alto" else st.info)(texto)
 
 st.plotly_chart(grafica(res, segmento, metrica_nombre, confianza), use_container_width=True)
@@ -390,7 +768,7 @@ with der:
         "metodo cometio en backtest sobre 110 segmentos reales. Para un escenario "
         "conservador usa el limite inferior; para el base, el punto.")
     st.download_button("Descargar CSV", salida.to_csv(index=False).encode("utf-8-sig"),
-                       file_name=f"tendencia_{metrica}_{etiqueta_geo[:30].replace(' ', '_')}.csv",
+                       file_name=f"tendencia_{metrica}_{nombre_archivo}.csv",
                        mime="text/csv", use_container_width=True)
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as xls:
@@ -424,6 +802,6 @@ with der:
             pd.DataFrame({"campo": list(campos), "valor": list(campos.values())}
                          ).to_excel(xls, index=False, sheet_name="contexto")
     st.download_button("Descargar Excel", buffer.getvalue(),
-                       file_name=f"tendencia_{metrica}_{etiqueta_geo[:30].replace(' ', '_')}.xlsx",
+                       file_name=f"tendencia_{metrica}_{nombre_archivo}.xlsx",
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                        use_container_width=True)

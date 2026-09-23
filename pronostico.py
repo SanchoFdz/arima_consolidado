@@ -30,6 +30,34 @@ MOTOR_DEFAULT = "Ensemble (recomendado)"
 MIN_OBS = 6
 NIVELES = (0.50, 0.80, 0.95)
 
+# ------------------------------------------------- umbrales de la derivada
+# Volumen minimo de la subcategoria en su ultimo ciclo observado. 1,000 alumnos
+# es 10x el umbral con el que este mismo modulo ya llama "volumen bajo" a un
+# segmento (ver los avisos de `proyectar`), y el factor 10 no es decorativo: en
+# una derivada se componen DOS incertidumbres, la del padre y la del reparto,
+# asi que el piso tiene que ser mas alto que el de una proyeccion directa.
+MIN_NI_DERIVADA = 1000
+
+# Dispersion maxima tolerada del share, medida como rango observado sobre share
+# medio. El 15% separa limpio los casos del panel: con las 2 observaciones que
+# hay de MIXTA, Licenciatura da 1.6% (49.1% -> 49.9%), Maestria 2.1% (24.6% ->
+# 24.1%) y Tecnico Superior 7.2%, mientras Doctorado da 31% (47.6% -> 34.8%) y
+# Especialidad 30% (63.3% -> 46.7%). Los dos ultimos son justo los niveles sin
+# volumen, donde el share se mueve 13 y 17 puntos de un ciclo al otro: repartir
+# la proyeccion del padre con un numero asi es inventarse la mitad del
+# resultado. Se rechazan.
+DISPERSION_MAX_SHARE = 0.15
+
+# Piso de la banda del share, en terminos relativos. Con 2 observaciones el
+# rango observado es una cota INFERIOR de la dispersion real --- dos puntos que
+# coinciden son evidencia de estabilidad, no prueba ---, asi que la banda nunca
+# cierra por debajo de +-5% del share. Sin este piso, MIXTA nacional (44.9% y
+# 45.0%) saldria con una banda de +-0.1 puntos, o sea afirmando que el reparto
+# de 2027 se conoce con tres cifras significativas desde dos observaciones.
+PISO_BANDA_SHARE = 0.05
+
+MIN_OBS_SHARE = 2
+
 
 @dataclass
 class Resultado:
@@ -43,6 +71,26 @@ class Resultado:
     cobertura_real: float | None
     confiabilidad: str
     avisos: list = field(default_factory=list)
+
+
+@dataclass
+class Derivada:
+    """Proyeccion de una subcategoria obtenida repartiendo la de su padre.
+
+    NO es un `Resultado` y no lo hereda, a proposito: no tiene backtest propio,
+    no tiene MAPE ni MASE propios y no le corresponde un semaforo de
+    confiabilidad. Los campos que existen son los que se pueden calcular de
+    verdad. Que el tipo sea distinto es lo que impide que la interfaz la
+    presente por accidente como una proyeccion directa.
+    """
+    etiqueta_padre: str
+    padre: "Resultado"
+    proyeccion: pd.DataFrame
+    share: float
+    shares_observados: pd.Series
+    banda_share: tuple
+    dispersion: float
+    cagr_padre: float | None
 
 
 def cargar_calibracion():
@@ -181,3 +229,93 @@ def proyectar(serie: pd.Series, horizonte: int = 3, nivel: float = 0.80,
         confiabilidad=_confiabilidad(mape, no_cero, reciente, mase),
         avisos=avisos,
     )
+
+
+def derivar_por_share(hijo: pd.Series, padre: pd.Series, horizonte: int = 3,
+                      nivel: float = 0.80, motor: str = MOTOR_DEFAULT,
+                      etiqueta_padre: str = "el agregado"):
+    """Proyecta al padre y reparte por la participacion observada del hijo.
+
+    El caso que la motiva: MIXTA existe desde 2023-2024 y son 2 observaciones.
+    `proyectar` la rechaza y hace bien --- `MIN_OBS = 6` no se baja, y meterle 2
+    puntos al ensemble seria pedirle a `drift` y a `lineal` que extrapolen una
+    recta entre dos numeros ---. Pero el agregado del que salio, Online (no
+    escolarizada + mixta), si tiene los 11 ciclos y es el motor y la calibracion
+    ya validados. Proyectarlo a el y repartir es lo unico que se puede decir del
+    hijo sin inventar nada.
+
+    El share va FIJO, el promedio de las observaciones disponibles. No se
+    extrapola su tendencia: con 2 puntos, "la tendencia del share" es una recta
+    entre dos numeros que a 3 ciclos manda el reparto de MIXTA de 45% a 47% o a
+    43% segun de que lado caiga el ruido, y eso no es informacion, es la
+    pendiente del error de medicion.
+
+    El intervalo hereda el del padre y se ensancha por la incertidumbre del
+    reparto: `inferior = inferior_padre x share_min` y `superior =
+    superior_padre x share_max`. Es la envolvente externa, no una convolucion:
+    empareja el peor caso del padre con el peor caso del share como si fueran
+    simultaneos. Sobre-cubre, y con 2 observaciones de share sobre-cubrir es el
+    lado correcto en el que equivocarse.
+
+    Devuelve `(Derivada, None)` si aplica y `(None, motivo)` si no, porque el
+    motivo es lo que la pantalla tiene que decir en vez de la derivada.
+    """
+    hijo = hijo.astype(float).sort_index()
+    padre = padre.astype(float).sort_index()
+
+    comunes = [a for a in hijo.index
+               if a in padre.index and padre.loc[a] > 0 and hijo.loc[a] > 0]
+    if len(comunes) < MIN_OBS_SHARE:
+        return None, (f"No hay ni {MIN_OBS_SHARE} ciclos en que este corte y "
+                      f"{etiqueta_padre} reporten alumnos a la vez, así que no hay "
+                      f"participación que repartir.")
+
+    shares = pd.Series([hijo.loc[a] / padre.loc[a] for a in comunes],
+                       index=comunes, dtype=float)
+    share = float(shares.mean())
+    rango = float(shares.max() - shares.min())
+    dispersion = rango / share if share > 0 else np.inf
+    ultimo = float(hijo.loc[comunes[-1]])
+
+    if ultimo < MIN_NI_DERIVADA:
+        return None, (f"El corte cierra en {ultimo:,.0f} alumnos y el mínimo para "
+                      f"derivar es {MIN_NI_DERIVADA:,}. Debajo de ahí la derivada "
+                      f"compone dos incertidumbres sobre una base que el propio "
+                      f"motor ya consideraría de volumen bajo.")
+    if dispersion > DISPERSION_MAX_SHARE:
+        return None, (f"La participación dentro de {etiqueta_padre} se mueve "
+                      f"{dispersion * 100:.0f}% entre los ciclos observados "
+                      f"({' y '.join(f'{s * 100:.1f}%' for s in shares)}), muy arriba "
+                      f"del {DISPERSION_MAX_SHARE * 100:.0f}% que se tolera. Con un "
+                      f"reparto que baila así, la derivada diría más sobre el "
+                      f"supuesto de reparto que sobre el mercado.")
+
+    res_padre = proyectar(padre, horizonte, nivel, motor)
+    if res_padre is None:
+        return None, (f"{etiqueta_padre} tampoco es proyectable, así que no hay de "
+                      f"dónde derivar.")
+
+    amplitud = max(rango, PISO_BANDA_SHARE * share)
+    share_min, share_max = max(share - amplitud, 0.0), share + amplitud
+
+    punto = res_padre.proyeccion["pronostico"].to_numpy() * share
+    inferior = np.clip(res_padre.proyeccion["inferior"].to_numpy() * share_min, 0, None)
+    superior = res_padre.proyeccion["superior"].to_numpy() * share_max
+
+    proyeccion = pd.DataFrame({
+        "anio": res_padre.proyeccion["anio"],
+        "ciclo": res_padre.proyeccion["ciclo"],
+        "pronostico": punto,
+        "inferior": inferior,
+        "superior": superior,
+    })
+    return Derivada(
+        etiqueta_padre=etiqueta_padre,
+        padre=res_padre,
+        proyeccion=proyeccion,
+        share=share,
+        shares_observados=shares,
+        banda_share=(share_min, share_max),
+        dispersion=dispersion,
+        cagr_padre=res_padre.cagr_proyectado,
+    ), None

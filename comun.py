@@ -5,6 +5,8 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from taxonomia import MODALIDADES_ONLINE
+
 RAIZ = Path(__file__).resolve().parent
 PANEL = RAIZ / "datos" / "panel_ni.parquet"
 CONCORDANCIA = RAIZ / "datos" / "concordancia_areas.parquet"
@@ -40,26 +42,50 @@ CORTES = {
     "Municipio": "Municipio",
 }
 
-# Modalidad ahora es multiselect, igual que el resto de los filtros de Segmento:
-# las opciones son las modalidades base que trae el panel (ESCOLARIZADA, NO
-# ESCOLARIZADA, MIXTA y DUAL) y el usuario las combina como quiera.
+# Modalidad es multiselect, igual que el resto de los filtros de Segmento: las
+# opciones son las modalidades base del panel (ESCOLARIZADA, NO ESCOLARIZADA,
+# MIXTA y DUAL) y el usuario las combina como quiera.
 #
-# Antes era un selectbox de una sola opcion sobre estos presets, y uno de ellos
-# era compuesto: "Online (no escolarizada + mixta)". Ese agrupador YA NO aparece
-# en el selector, porque con multiselect se arma marcando las dos casillas y
-# tenerlo aparte duplicaria la misma consulta con dos nombres. Lo que si se
-# conserva es el diccionario, para que nada que ya mande el valor compuesto se
-# rompa: `normalizar_modalidades` traduce el nombre de cualquier preset a sus
-# modalidades base, y `aplicar_filtros` lo llama solo para esta columna. Asi un
-# `filtros["Modalidad"] = "Online (no escolarizada + mixta)"` viejo sigue
-# filtrando exactamente lo mismo que antes.
+# Y ADEMAS convive en la lista una opcion compuesta, "Online (no escolarizada +
+# mixta)", que se expande a sus dos modalidades base. Esto se habia quitado al
+# pasar a multiselect, con el argumento de que se arma marcando dos casillas y
+# tener el mismo corte con dos nombres invita a reportar cifras que parecen de
+# universos distintos. El argumento estaba equivocado y los numeros lo dicen:
+#
+#   NO ESCOLARIZADA sola   437,882 -> 261,678 -> 297,016   -40.2% / +13.5%
+#   NO ESCOLARIZADA+MIXTA  437,882 -> 475,083 -> 540,301    +8.5% / +13.7%
+#
+# El -40.2% es el desglose de MIXTA en 2023-2024, no mercado (ver taxonomia.py).
+# O sea que la suma no es un corte mas entre los 15 posibles: es la UNICA serie
+# de modalidad comparable en los 11 ciclos que se puede pedir de este panel, y
+# esconderla detras de "marca estas dos y no estas otras" es esconder el camino
+# correcto. Se devuelve como atajo, no como modo: sigue siendo un multiselect y
+# se puede combinar con lo que sea.
+#
+# El resto de los presets no vuelven al selector --- "Escolarizada (presencial)"
+# y "Solo no escolarizada" si son un duplicado de marcar una casilla. Viven aqui
+# para que `normalizar_modalidades` traduzca cualquier nombre viejo a sus
+# modalidades base y nada que ya mande un preset se rompa.
+MODALIDAD_ONLINE = "Online (no escolarizada + mixta)"
+
 PRESETS_MODALIDAD = {
     "Todas": None,
     "Escolarizada (presencial)": ["ESCOLARIZADA"],
-    "Online (no escolarizada + mixta)": ["NO ESCOLARIZADA", "MIXTA"],
+    MODALIDAD_ONLINE: list(MODALIDADES_ONLINE),
     "Solo no escolarizada": ["NO ESCOLARIZADA"],
     "Dual": ["DUAL"],
 }
+
+# Presets que SI se ofrecen en la interfaz, en el orden en que se ofrecen.
+PRESETS_EN_SELECTOR = [MODALIDAD_ONLINE]
+
+AYUDA_MODALIDAD = (
+    "Vacio = todas las modalidades sumadas. Se pueden combinar varias. "
+    f"**{MODALIDAD_ONLINE}** es un atajo: equivale exactamente a marcar esas dos "
+    "casillas, y es la unica serie de modalidad comparable en los 11 ciclos "
+    "porque ANUIES empezo a desglosar MIXTA hasta 2023-2024 (NO ESCOLARIZADA "
+    "sola cae -40.2% ese ciclo por reclasificacion, no por mercado)."
+)
 
 SIN_ZM = "Fuera de zona metropolitana"
 
@@ -150,6 +176,17 @@ def cargar():
 @st.cache_data(show_spinner=False)
 def opciones(df, columna):
     return sorted(str(v) for v in df[columna].dropna().unique())
+
+
+def opciones_modalidad(df):
+    """Opciones del multiselect de Modalidad: el atajo compuesto y luego las base.
+
+    El compuesto va primero a proposito. Es la respuesta correcta para la
+    pregunta que mas se hace de esta columna --- "como va el online" --- y
+    ponerlo debajo de las cuatro base lo convierte en una nota al pie de la
+    unica serie que no tiene el escalon de 2023-2024.
+    """
+    return list(PRESETS_EN_SELECTOR) + opciones(df, "Modalidad")
 
 
 def aplicar_filtros(df, filtros):

@@ -24,6 +24,7 @@ import drivers
 import metodos
 import pronostico
 import rezago
+import taxonomia as tax
 
 warnings.simplefilter("ignore")
 
@@ -51,8 +52,13 @@ def construir_segmentos(df, metrica="NI"):
         for v in df["Estado"].dropna().unique():
             segs.append((f"EDO:{v}|{niv[:12]}", g(sub_n[sub_n["Estado"] == v]),
                          {"Estado": [v]}))
+    # El segmento "online" es NO ESCOLARIZADA + MIXTA y ese par no se escribe a
+    # mano: sale de `taxonomia.MODALIDADES_ONLINE`, la misma constante con la que
+    # la app arma el atajo del selector. Si un dia ANUIES desglosa otra modalidad
+    # mas, el backtest tiene que seguir midiendo la misma serie que la app
+    # muestra, y con la lista duplicada aqui solo se enteraria una de las dos.
     for mod, etq in [(["ESCOLARIZADA"], "PRESENCIAL"),
-                     (["NO ESCOLARIZADA", "MIXTA"], "ONLINE")]:
+                     (tax.MODALIDADES_ONLINE, "ONLINE")]:
         sub_m = df[df["Modalidad"].isin(mod)]
         segs.append((f"NAC|{etq}", g(sub_m), {}))
         for v in df["Zona_Metropolitana"].dropna().unique():
