@@ -19,8 +19,8 @@ import drivers
 import metodos
 import pronostico as pr
 import taxonomia as tax
-from comun import (CORTES, METRICAS, PRESETS_MODALIDAD, SIN_ZM,
-                   aplicar_filtros, cargar, opciones)
+from comun import (CORTES, METRICAS, SIN_ZM, aplicar_filtros, cargar,
+                   opciones)
 
 st.set_page_config(page_title="Descarga masiva", page_icon="📦", layout="wide")
 st.title("Descarga masiva de tendencias")
@@ -76,9 +76,10 @@ filtros = {}
 niveles = f1.multiselect("Nivel educativo", opciones(df, "Nivel_educativo"))
 if niveles and "Nivel_educativo" not in dims:
     filtros["Nivel_educativo"] = niveles
-preset = f2.selectbox("Modalidad", list(PRESETS_MODALIDAD))
-if PRESETS_MODALIDAD[preset] and "Modalidad" not in dims:
-    filtros["Modalidad"] = PRESETS_MODALIDAD[preset]
+modalidades = f2.multiselect("Modalidad", opciones(df, "Modalidad"),
+                             help="Vacio = todas. Se pueden combinar varias.")
+if modalidades and "Modalidad" not in dims:
+    filtros["Modalidad"] = modalidades
 campos = f3.multiselect("Campo de conocimiento", opciones(df, "Campo"))
 if campos and not {"Campo", "Grupo_comparable"} & set(dims):
     filtros["Campo"] = campos

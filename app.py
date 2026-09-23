@@ -13,8 +13,8 @@ import contexto as ctx
 import metodos
 import taxonomia as tax
 import pronostico as pr
-from comun import (CORTES, METRICAS, PRESETS_MODALIDAD, SIN_ZM,
-                   aplicar_filtros, cargar, opciones)
+from comun import (CORTES, METRICAS, SIN_ZM, aplicar_filtros, cargar,
+                   etiqueta_modalidades, opciones)
 
 st.set_page_config(page_title="Tendencias de Nuevo Ingreso", page_icon="📈", layout="wide")
 
@@ -250,9 +250,13 @@ niveles = st.sidebar.multiselect("Nivel educativo", opciones(df, "Nivel_educativ
 if niveles:
     filtros["Nivel_educativo"] = niveles
 
-preset = st.sidebar.selectbox("Modalidad", list(PRESETS_MODALIDAD))
-if PRESETS_MODALIDAD[preset]:
-    filtros["Modalidad"] = PRESETS_MODALIDAD[preset]
+modalidades = st.sidebar.multiselect(
+    "Modalidad", opciones(df, "Modalidad"),
+    help="Vacio = todas las modalidades sumadas. Se pueden combinar varias: "
+         "marcar NO ESCOLARIZADA y MIXTA a la vez es lo que antes era el preset "
+         "'Online'.")
+if modalidades:
+    filtros["Modalidad"] = modalidades
 
 # Disciplina: dos niveles, los dos con serie continua de 11 ciclos. No son las
 # columnas crudas del panel, son los grupos comparables de concordancia.py.
@@ -329,9 +333,10 @@ if res is None:
 
 # El corte mas fino primero: si filtraste una carrera, eso es lo que estas
 # viendo, y ponerle de titulo el campo entero hace creer que es otra cosa.
+etiqueta_mod = etiqueta_modalidades(modalidades)
 segmento = " · ".join([etiqueta_geo] +
                       ([", ".join(niveles)] if niveles else []) +
-                      ([preset] if PRESETS_MODALIDAD[preset] else []) +
+                      ([etiqueta_mod] if etiqueta_mod else []) +
                       ([", ".join(grupos)] if grupos else
                        [", ".join(campos)] if campos else []))
 

@@ -48,9 +48,20 @@ Cortes disponibles:
 |---|---|
 | Geográfico | Nacional · Región Nielsen · Área Nielsen · **Zona metropolitana** · Estado · Municipio |
 | Nivel educativo | TSU, Licenciatura, Normal, Especialidad, Maestría, Doctorado |
-| Modalidad | Escolarizada · Online (no escolarizada + mixta) · Dual |
+| Modalidad | Escolarizada · No escolarizada · Mixta · Dual (multiselect: se combinan libremente) |
 | Disciplina | Campo de conocimiento → Carrera o grupo de carreras (69 grupos comparables) |
 | Métrica | NI · Matrícula · Egresados · Solicitudes |
+
+**Modalidad es multiselect.** Las opciones son las modalidades base del panel y se
+combinan libremente (una, dos o las que sean); vacío = todas sumadas. El antiguo
+agrupador compuesto *"Online (no escolarizada + mixta)"* ya no aparece en el
+selector porque se arma marcando esas dos casillas, y tener el mismo corte con
+dos nombres distintos sólo invita a reportar cifras que parecen de universos
+diferentes. El nombre sigue vivo en dos lugares: `PRESETS_MODALIDAD` (`comun.py`)
+lo traduce a sus modalidades base, así que cualquier código que todavía mande el
+valor compuesto filtra igual que antes; y si lo seleccionado coincide exacto con
+un preset, el título de la gráfica y la ficha del Excel lo siguen llamando
+"Online (no escolarizada + mixta)".
 
 ## Decisiones que conviene conocer antes de usar los números
 
