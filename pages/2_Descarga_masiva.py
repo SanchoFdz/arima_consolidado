@@ -70,7 +70,17 @@ horizonte = m2.slider("Ciclos a proyectar", 1, 5, 3)
 # Misma lista que la pagina principal, y por la misma razon: MOTORES_UI es el
 # subconjunto ofrecible de MOTORES. Theta y Holt quedan fuera del selector pero
 # siguen corriendo en la competencia de validacion.py (ver `metodos.MOTORES_UI`).
-motor = m3.selectbox("Metodo", list(metodos.MOTORES_UI), index=0,
+# `getattr` y no `metodos.MOTORES_UI` directo. Streamlit Cloud vuelve a ejecutar
+# el script de la pagina en cada rerun, pero el modulo importado puede seguir
+# viniendo de sys.modules con el codigo de antes del deploy. Cuando un push
+# AGREGA un nombre nuevo a metodos.py, esa ventana deja la pagina tirada con
+# AttributeError hasta que alguien reinicia la app a mano --- que es exactamente
+# lo que paso al publicar MOTORES_UI. El fallback deriva el mismo subconjunto de
+# MOTORES, que ya existia antes, asi que la pagina levanta con o sin reinicio.
+MOTORES_UI = getattr(metodos, "MOTORES_UI", None) or tuple(
+    n for n in metodos.MOTORES if n not in ("Theta", "Holt amortiguado"))
+
+motor = m3.selectbox("Metodo", list(MOTORES_UI), index=0,
                      help="El ensemble gana el backtest; el ARIMA se deja para comparar.")
 
 st.subheader("Filtros fijos (se aplican a todas las categorias)")

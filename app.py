@@ -651,8 +651,18 @@ confianza = st.sidebar.select_slider("Confianza del intervalo", [50, 80, 95], va
 # validacion.py y calibrandose en calibrar.py, pero no se ofrecen aqui porque
 # empatan con el ensemble (1.225 y 1.325 de MASE contra 1.216) y elegirlos seria
 # cambiar de motor por ruido. Ver el comentario de `metodos.MOTORES_UI`.
+# `getattr` y no `metodos.MOTORES_UI` directo. Streamlit Cloud vuelve a ejecutar
+# el script de la pagina en cada rerun, pero el modulo importado puede seguir
+# viniendo de sys.modules con el codigo de antes del deploy. Cuando un push
+# AGREGA un nombre nuevo a metodos.py, esa ventana deja la pagina tirada con
+# AttributeError hasta que alguien reinicia la app a mano --- que es exactamente
+# lo que paso al publicar MOTORES_UI. El fallback deriva el mismo subconjunto de
+# MOTORES, que ya existia antes, asi que la pagina levanta con o sin reinicio.
+MOTORES_UI = getattr(metodos, "MOTORES_UI", None) or tuple(
+    n for n in metodos.MOTORES if n not in ("Theta", "Holt amortiguado"))
+
 motor = st.sidebar.selectbox(
-    "Metodo", list(metodos.MOTORES_UI), index=0,
+    "Metodo", list(MOTORES_UI), index=0,
     help="El ensemble gana el backtest sobre 110 segmentos. El ARIMA esta "
          "disponible para comparar, pero ahi quedo por debajo del naive: con 11 "
          "observaciones anuales no tiene estructura que identificar.")
