@@ -99,9 +99,19 @@ def _backtest(y, motor_fn, h_max=3, min_train=7):
     return mase, mape
 
 
-def _confiabilidad(mape, n_no_cero, nivel_reciente):
+def _confiabilidad(mape, n_no_cero, nivel_reciente, mase=None):
+    """Semaforo del segmento. El MASE manda sobre el MAPE.
+
+    Un segmento puede tener MAPE chico y aun asi no ganarle a repetir el ultimo
+    valor: pasa en series planas, donde el error porcentual es bajo porque el
+    nivel casi no se mueve. Llamarle "alta confiabilidad" a eso y al mismo tiempo
+    avisar que el metodo no le gana al naive es decir dos cosas contrarias en la
+    misma pantalla, asi que con MASE > 1 el semaforo no sube de media.
+    """
     if mape is None or n_no_cero < 8 or nivel_reciente < 100:
         return "baja"
+    if mase is not None and mase > 1:
+        return "media" if mape <= 15 else "baja"
     if mape <= 8:
         return "alta"
     if mape <= 15:
@@ -168,6 +178,6 @@ def proyectar(serie: pd.Series, horizonte: int = 3, nivel: float = 0.80,
         cagr_historico=_cagr(float(y.iloc[0]), float(y.iloc[-1]), len(y) - 1),
         cagr_proyectado=_cagr(float(y.iloc[-1]), float(punto[-1]), horizonte),
         cobertura_real=calib.get(motor, {}).get("cobertura_real", {}).get(str(nivel)),
-        confiabilidad=_confiabilidad(mape, no_cero, reciente),
+        confiabilidad=_confiabilidad(mape, no_cero, reciente, mase),
         avisos=avisos,
     )

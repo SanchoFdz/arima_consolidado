@@ -8,6 +8,7 @@ validacion.py, donde el ARIMA quedo por debajo del naive.
 import warnings
 
 import numpy as np
+import pandas as pd
 
 import modelo as m
 
@@ -96,3 +97,53 @@ MOTORES = {
     "Tendencia lineal": lineal,
     "Ultimo valor (naive)": naive,
 }
+
+
+# --------------------------------------------------------------- con driver
+def extender_driver(driver, anios):
+    """Garantiza que el driver cubra los anos pedidos.
+
+    CONAPO llega a 2040 y la SEP a 2030-31, asi que en la practica nunca hace
+    falta; existe para que un horizonte largo no truene y para dejar registro
+    de que esos anos son extrapolacion nuestra y no de la fuente.
+    """
+    faltan = [a for a in anios if a not in driver.index]
+    if not faltan:
+        return driver, []
+    ult = driver.dropna()
+    ventana = ult.iloc[-5:]
+    g = (float(ventana.iloc[-1]) / float(ventana.iloc[0])) ** (1 / (len(ventana) - 1))
+    base_anio, base_val = int(ult.index[-1]), float(ult.iloc[-1])
+    extra = pd.Series({a: base_val * g ** (a - base_anio) for a in faltan})
+    return pd.concat([driver, extra]).sort_index(), faltan
+
+
+def razon(y, h, driver, base=None):
+    """Proyecta la tasa y/driver y la reescala por el driver futuro conocido.
+
+    NO es el motor de la app, y no por olvido: quedo en 1.226 de MASE contra
+    1.214 de extrapolar a secas sobre 155 segmentos (validacion_externos.py).
+    Vive aqui porque es el competidor de esa medicion, y porque si algun dia hay
+    un driver municipal decente --- egresados de media superior por municipio ---
+    esta es la forma de engancharlo.
+
+    La idea era meter informacion externa sin gastar un grado de libertad: la
+    demografia no se estima, se lee de CONAPO, y lo unico que se extrapola es la
+    tasa de captacion, que viene limpia de crecimiento poblacional. Con un
+    horizonte de 3 anos no alcanza: la cohorte se mueve menos de 0.5% al ano.
+
+    Si la tasa proyectada es negativa se recorta a cero: la captacion no puede
+    serlo, y la recta de un componente del ensemble si puede cruzar el eje.
+    """
+    base = base or ensemble
+    anios_futuros = [int(y.index[-1]) + i for i in range(1, h + 1)]
+    d, _ = extender_driver(driver, anios_futuros)
+
+    comun = [a for a in y.index if a in d.index and d.loc[a] > 0]
+    if len(comun) < 6:
+        return base(y, h)
+
+    tasa = pd.Series(y.loc[comun].values.astype(float) / d.loc[comun].values,
+                     index=comun)
+    tasa_futura = np.clip(np.asarray(base(tasa, h), dtype=float), 0, None)
+    return tasa_futura * d.loc[anios_futuros].values

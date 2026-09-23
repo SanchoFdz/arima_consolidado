@@ -5,10 +5,17 @@ __pycache__/
 venv/
 .venv/
 
-# Artefacto de analisis: lo regenera validacion.py, la app no lo necesita
+# Artefactos de analisis: los regeneran validacion.py y validacion_externos.py,
+# la app no los necesita
 datos/validacion.parquet
+datos/validacion_externos.parquet
 
 # La fuente pesa 25 MB y no hace falta en el deploy: la app lee el parquet ya
 # procesado. Para regenerarlo hace falta el xlsx en ../data/ y correr
 # preparar_datos.py localmente.
 *.xlsx
+
+# Fuentes externas en bruto (CONAPO son 23 MB). El deploy no las necesita: la app
+# lee los parquets de datos/, que si van versionados. Para regenerarlos hace
+# falta esta carpeta y correr externos.py. Ver README.
+series_historicas/

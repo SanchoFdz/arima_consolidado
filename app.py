@@ -9,7 +9,9 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+import contexto as ctx
 import metodos
+import taxonomia as tax
 import pronostico as pr
 from comun import (CORTES, METRICAS, PRESETS_MODALIDAD, SIN_ZM,
                    aplicar_filtros, cargar, opciones)
@@ -22,8 +24,13 @@ def serie_y_modelo(df, filtros, metrica, horizonte, nivel, motor):
     sub = aplicar_filtros(df, filtros)
     serie = sub.groupby("anio", observed=True)[metrica].sum().sort_index()
     if serie.empty:
-        return serie, None
-    return serie, pr.proyectar(serie, horizonte, nivel, motor)
+        return serie, None, None
+    # El catalogo ANUIES cambio en 2017-2018 y las subareas y areas especificas
+    # no estan homologadas: una categoria que solo existe en uno de los dos
+    # catalogos trae ceros en las puntas que no son ceros de mercado. Se recortan
+    # antes de proyectar, porque el extrapolador no sabe distinguirlos.
+    serie, aviso_catalogo = tax.recortar(serie)
+    return serie, pr.proyectar(serie, horizonte, nivel, motor), aviso_catalogo
 
 
 def tabla_salida(res, metrica_nombre):
@@ -164,6 +171,51 @@ def grafica(res, etiqueta, metrica_nombre, confianza):
     return fig
 
 
+
+@st.cache_data(show_spinner=False)
+def contexto_externo(filtros, serie, anios, cagr_proyectado):
+    return ctx.lectura(filtros, serie, anios, cagr_proyectado)
+
+
+def bloque_contexto(c):
+    """Contra que corre la proyeccion. Se lee, no se configura.
+
+    Los datos externos no entran al numero --- se probo y no mejoro el error, ver
+    el docstring de contexto.py --- pero si dicen lo que el numero supone. La
+    divergencia va primero porque es lo unico que puede cambiar una decision:
+    una proyeccion que crece mientras la cohorte cae es un supuesto de ganancia
+    de participacion, y conviene que sea a proposito.
+    """
+    if c is None:
+        return
+    st.markdown("---")
+    st.subheader("Contra qué corre esta proyección")
+
+    if c.get("divergencia"):
+        st.warning(c["divergencia"])
+
+    d1, d2, d3 = st.columns(3)
+    d1.metric(f"Población 12-29 del corte, {c['anio_fin']}",
+              formato_corto(c["pob_fin"]),
+              f"{c['cagr_pob_%']:+.2f}% anual" if c["cagr_pob_%"] is not None else None,
+              help=f"CONAPO, proyecciones municipales. Suma de {c['municipios']} "
+                   "municipios del corte, incluidos los que no tienen oferta: el "
+                   "joven que vive donde no hay universidad se matricula en la de "
+                   "al lado.")
+    d2.metric("Tasa de captación", f"{c['tasa_captacion_x1000']:.1f} por mil",
+              help="Nuevo ingreso del corte por cada 1,000 jóvenes de 12 a 29 años "
+                   "que viven en él.")
+    if c.get("cambio_2040_%") is not None:
+        d3.metric("Cohorte joven a 2040", f"{c['cambio_2040_%']:+.1f}%",
+                  help="Cambio de la población de 12 a 29 años del corte entre hoy "
+                       "y 2040, según CONAPO. La proyección del panel no lo "
+                       "incorpora: su horizonte llega a 5 ciclos.")
+
+    for linea in (ctx.linea_demografia(c), ctx.linea_rezago(c)):
+        if linea:
+            st.caption(linea)
+
+
 # ------------------------------------------------------------------ sidebar
 df = cargar()
 
@@ -199,17 +251,23 @@ preset = st.sidebar.selectbox("Modalidad", list(PRESETS_MODALIDAD))
 if PRESETS_MODALIDAD[preset]:
     filtros["Modalidad"] = PRESETS_MODALIDAD[preset]
 
-areas = st.sidebar.multiselect("Area de conocimiento (taxonomia 2014)", opciones(df, "Area_2014"))
-if areas:
-    filtros["Area_2014"] = areas
-    subs = opciones(aplicar_filtros(df, {"Area_2014": areas}), "Subarea")
-    elegidas = st.sidebar.multiselect("Subarea", subs)
-    if elegidas:
-        filtros["Subarea"] = elegidas
-        esp = opciones(aplicar_filtros(df, {"Subarea": elegidas}), "Area_especifica")
-        especificas = st.sidebar.multiselect("Area especifica", esp)
-        if especificas:
-            filtros["Area_especifica"] = especificas
+# Disciplina: dos niveles, los dos con serie continua de 11 ciclos. No son las
+# columnas crudas del panel, son los grupos comparables de concordancia.py.
+campos = st.sidebar.multiselect("Campo de conocimiento", opciones(df, "Campo"),
+                                help="Vacio = todos los campos sumados")
+if campos:
+    filtros["Campo"] = campos
+disponibles = opciones(aplicar_filtros(df, {"Campo": campos}) if campos else df,
+                       "Grupo_comparable")
+grupos = st.sidebar.multiselect(
+    "Carrera o grupo de carreras", disponibles,
+    help="69 grupos comparables entre los dos catalogos ANUIES. Cada uno junta "
+         "las categorias viejas y nuevas que se corresponden, porque el catalogo "
+         "cambio en 2017-2018: 'Desarrollo de software' no existia antes de 2017 "
+         "y 'Ciencias de la computacion' desaparecio ese ano. Agrupadas, la serie "
+         "cubre los 11 ciclos.")
+if grupos:
+    filtros["Grupo_comparable"] = grupos
 
 st.sidebar.header("Modelo")
 metrica_nombre = st.sidebar.selectbox("Metrica a proyectar", list(METRICAS))
@@ -249,11 +307,14 @@ st.markdown("""
 st.title("Tendencias de Nuevo Ingreso")
 st.markdown(
     '<div class="sub">Agregado ANUIES, ciclos 2014-2015 a 2024-2025 &nbsp;·&nbsp; '
-    'áreas homologadas a la taxonomía 2014 &nbsp;·&nbsp; '
+    'carreras agrupadas para ser comparables entre los dos catálogos ANUIES &nbsp;·&nbsp; '
     'zonas metropolitanas según Metrópolis de México 2020</div>',
     unsafe_allow_html=True)
 
-serie, res = serie_y_modelo(df, filtros, metrica, horizonte, confianza / 100, motor)
+serie, res, aviso_catalogo = serie_y_modelo(df, filtros, metrica, horizonte,
+                                            confianza / 100, motor)
+if aviso_catalogo:
+    st.info(aviso_catalogo)
 
 if serie.empty or serie.sum() == 0:
     st.warning("No hay datos para esta combinacion de filtros.")
@@ -263,10 +324,13 @@ if res is None:
     st.line_chart(serie)
     st.stop()
 
+# El corte mas fino primero: si filtraste una carrera, eso es lo que estas
+# viendo, y ponerle de titulo el campo entero hace creer que es otra cosa.
 segmento = " · ".join([etiqueta_geo] +
                       ([", ".join(niveles)] if niveles else []) +
                       ([preset] if PRESETS_MODALIDAD[preset] else []) +
-                      ([", ".join(areas)] if areas else []))
+                      ([", ".join(grupos)] if grupos else
+                       [", ".join(campos)] if campos else []))
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric(f"{metrica_nombre} 2024-2025", f"{int(serie.iloc[-1]):,}")
@@ -283,7 +347,19 @@ c4.metric("Confiabilidad", SEMAFORO[res.confiabilidad],
 for aviso in res.avisos:
     st.warning(aviso)
 
+# Red de seguridad: los grupos comparables son continuos por construccion, pero
+# un cruce (grupo x zona chica x modalidad) puede seguir teniendo un salto raro
+# en 2017. Si lo tiene, se dice.
+quiebre = tax.quiebre_de_catalogo(serie)
+if quiebre:
+    severidad, texto = quiebre
+    (st.warning if severidad == "alto" else st.info)(texto)
+
 st.plotly_chart(grafica(res, segmento, metrica_nombre, confianza), use_container_width=True)
+
+contexto = contexto_externo(filtros, serie, list(res.proyeccion["anio"]),
+                            res.cagr_proyectado)
+bloque_contexto(contexto)
 
 salida = tabla_salida(res, metrica_nombre)
 st.markdown("---")
@@ -319,6 +395,26 @@ with der:
                                 (res.cobertura_real * 100) if res.cobertura_real else None,
                                 res.cagr_historico, res.cagr_proyectado]}
                      ).to_excel(xls, index=False, sheet_name="ficha")
+        if contexto:
+            campos = {
+                "municipios_del_corte": contexto["municipios"],
+                f"poblacion_12_29_{contexto['anio_base']}": contexto["pob_base"],
+                f"poblacion_12_29_{contexto['anio_fin']}": contexto["pob_fin"],
+                "CAGR_poblacion_12_29_%": contexto["cagr_pob_%"],
+                "poblacion_12_29_2040": contexto.get("pob_2040"),
+                "cambio_cohorte_a_2040_%": contexto.get("cambio_2040_%"),
+                "tasa_captacion_x1000": contexto["tasa_captacion_x1000"],
+                "brecha_proyeccion_vs_demografia_pp": contexto.get("brecha_pp"),
+            }
+            if contexto.get("rezago"):
+                r = contexto["rezago"]
+                campos.update({
+                    "rezago_grado_2020": r["grado_rezago"],
+                    "rezago_basica_incompleta_%": r["basica_incompleta"],
+                    "rezago_basica_incompleta_2000_%": r["basica_incompleta_2000"],
+                })
+            pd.DataFrame({"campo": list(campos), "valor": list(campos.values())}
+                         ).to_excel(xls, index=False, sheet_name="contexto")
     st.download_button("Descargar Excel", buffer.getvalue(),
                        file_name=f"tendencia_{metrica}_{etiqueta_geo[:30].replace(' ', '_')}.xlsx",
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

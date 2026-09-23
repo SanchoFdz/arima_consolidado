@@ -1,0 +1,39 @@
+{
+  "indicador": "basica_incompleta",
+  "elasticidad": -0.020909563257773364,
+  "intercepto": -2.8184265874568086,
+  "error_estandar": 0.00329287482656109,
+  "t": -6.349941725422416,
+  "r2": 0.0663927469383283,
+  "n_municipios": 569,
+  "anio_indicadores": 2020,
+  "ciclos_ni": [
+    2022,
+    2023,
+    2024
+  ],
+  "candidatos": {
+    "irs": {
+      "pendiente": -0.21774456508966464,
+      "intercepto": -3.645847034568376,
+      "error_estandar": 0.052083158628550154,
+      "t": -4.180709673209119,
+      "r2": 0.02990415961330395
+    },
+    "basica_incompleta": {
+      "pendiente": -0.020909563257773364,
+      "intercepto": -2.8184265874568086,
+      "error_estandar": 0.00329287482656109,
+      "t": -6.349941725422416,
+      "r2": 0.0663927469383283
+    },
+    "analfabeta": {
+      "pendiente": -0.029690177054557298,
+      "intercepto": -3.3401176529080536,
+      "error_estandar": 0.008467727160510235,
+      "t": -3.506274646285164,
+      "r2": 0.021222320106637493
+    }
+  },
+  "nota": "Asociacion transversal entre tasa de captacion y rezago, no efecto causal. Solo se aplica al CAMBIO DE RITMO del rezago proyectado (el nivel ya esta en la tasa historica) y se acota a +/-6%."
+}
