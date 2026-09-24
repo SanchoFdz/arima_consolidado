@@ -585,14 +585,26 @@ def bloque_contexto(c):
 
 
 # ------------------------------------------------------------------ sidebar
-df = cargar()
+# Media superior vive en su propio panel. `getattr` otra vez por Cloud: si
+# `comun` llega viejo de sys.modules no hay cargar_ems y la app se queda en
+# superior en vez de tirarse.
+_cargar_ems = getattr(comun, "cargar_ems", None)
+PANELES = getattr(comun, "PANELES", None) if _cargar_ems else None
+panel = (st.sidebar.radio("Datos", PANELES, horizontal=True,
+                          help="Superior: agregado ANUIES. Media superior: "
+                               "formato 911 de la SEP, bachillerato general y "
+                               "tecnologico.")
+         if PANELES else None)
+es_ems = bool(PANELES) and panel == comun.MEDIA_SUPERIOR
+
+df = _cargar_ems() if es_ems else cargar()
 
 # Mismo problema que MOTORES_UI (ver abajo), del lado de los datos: si Cloud
 # sigue sirviendo `comun` viejo desde sys.modules, `cargar` puede devolver de
 # cache un panel anterior a la columna Sostenimiento. Se limpia y se relee.
 if "Sostenimiento" not in df.columns:
     st.cache_data.clear()
-    df = cargar()
+    df = _cargar_ems() if es_ems else cargar()
 
 # getattr por la misma razon que MOTORES_UI: nombre nuevo en un modulo importado.
 AYUDA_SOSTENIMIENTO = getattr(comun, "AYUDA_SOSTENIMIENTO",
@@ -621,10 +633,13 @@ if col_geo:
         etiqueta_geo = elegido
 
 st.sidebar.header("Segmento")
-niveles = st.sidebar.multiselect("Nivel educativo", opciones(df, "Nivel_educativo"),
-                                 help="Vacio = todos los niveles sumados")
+# En media superior el "nivel" es el subnivel: general contra tecnologico.
+col_nivel = "Subnivel" if es_ems else "Nivel_educativo"
+niveles = st.sidebar.multiselect(
+    "Subnivel" if es_ems else "Nivel educativo", opciones(df, col_nivel),
+    help=comun.AYUDA_SUBNIVEL if es_ems else "Vacio = todos los niveles sumados")
 if niveles:
-    filtros["Nivel_educativo"] = niveles
+    filtros[col_nivel] = niveles
 
 sostenimientos = st.sidebar.multiselect(
     "Sostenimiento", opciones(df, "Sostenimiento"), help=AYUDA_SOSTENIMIENTO)
@@ -632,7 +647,8 @@ if sostenimientos:
     filtros["Sostenimiento"] = sostenimientos
 
 modalidades = st.sidebar.multiselect(
-    "Modalidad", opciones_modalidad(df), help=AYUDA_MODALIDAD)
+    "Modalidad", opciones(df, "Modalidad") if es_ems else opciones_modalidad(df),
+    help=comun.AYUDA_MODALIDAD_EMS if es_ems else AYUDA_MODALIDAD)
 # Al filtro se le mandan siempre las modalidades BASE, no lo que se marco. Asi
 # elegir el atajo compuesto y marcar las dos casillas producen literalmente el
 # mismo `filtros`, o sea la misma clave de cache y el mismo numero: no son dos
@@ -643,25 +659,29 @@ if mods_base:
 
 # Disciplina: dos niveles, los dos con serie continua de 11 ciclos. No son las
 # columnas crudas del panel, son los grupos comparables de concordancia.py.
-campos = st.sidebar.multiselect("Campo de conocimiento", opciones(df, "Campo"),
-                                help="Vacio = todos los campos sumados")
+# Media superior no tiene disciplina: el bachillerato no se elige por carrera.
+campos, grupos = [], []
+if not es_ems:
+    campos = st.sidebar.multiselect("Campo de conocimiento", opciones(df, "Campo"),
+                                    help="Vacio = todos los campos sumados")
+    disponibles = opciones(aplicar_filtros(df, {"Campo": campos}) if campos else df,
+                           "Grupo_comparable")
+    grupos = st.sidebar.multiselect(
+        "Carrera o grupo de carreras", disponibles,
+        help="69 grupos comparables entre los dos catalogos ANUIES. Cada uno junta "
+             "las categorias viejas y nuevas que se corresponden, porque el catalogo "
+             "cambio en 2017-2018: 'Desarrollo de software' no existia antes de 2017 "
+             "y 'Ciencias de la computacion' desaparecio ese ano. Agrupadas, la serie "
+             "cubre los 11 ciclos.")
 if campos:
     filtros["Campo"] = campos
-disponibles = opciones(aplicar_filtros(df, {"Campo": campos}) if campos else df,
-                       "Grupo_comparable")
-grupos = st.sidebar.multiselect(
-    "Carrera o grupo de carreras", disponibles,
-    help="69 grupos comparables entre los dos catalogos ANUIES. Cada uno junta "
-         "las categorias viejas y nuevas que se corresponden, porque el catalogo "
-         "cambio en 2017-2018: 'Desarrollo de software' no existia antes de 2017 "
-         "y 'Ciencias de la computacion' desaparecio ese ano. Agrupadas, la serie "
-         "cubre los 11 ciclos.")
 if grupos:
     filtros["Grupo_comparable"] = grupos
 
 st.sidebar.header("Modelo")
-metrica_nombre = st.sidebar.selectbox("Metrica a proyectar", list(METRICAS))
-metrica = METRICAS[metrica_nombre]
+metricas_panel = comun.METRICAS_EMS if es_ems else METRICAS
+metrica_nombre = st.sidebar.selectbox("Metrica a proyectar", list(metricas_panel))
+metrica = metricas_panel[metrica_nombre]
 horizonte = st.sidebar.slider("Ciclos a proyectar", 1, 5, 3)
 confianza = st.sidebar.select_slider("Confianza del intervalo", [50, 80, 95], value=80)
 # MOTORES_UI, no MOTORES: Theta y Holt amortiguado siguen midiendose en
@@ -710,9 +730,13 @@ st.markdown("""
 
 st.title("Tendencias de Nuevo Ingreso")
 st.markdown(
-    '<div class="sub">Agregado ANUIES, ciclos 2014-2015 a 2024-2025 &nbsp;·&nbsp; '
-    'carreras agrupadas para ser comparables entre los dos catálogos ANUIES &nbsp;·&nbsp; '
-    'zonas metropolitanas según Metrópolis de México 2020</div>',
+    ('<div class="sub">Media superior, formato 911 de la SEP, ciclos 2014-2015 a '
+     '2024-2025 &nbsp;·&nbsp; nuevo ingreso a primer grado &nbsp;·&nbsp; '
+     'zonas metropolitanas según Metrópolis de México 2020</div>')
+    if es_ems else
+    ('<div class="sub">Agregado ANUIES, ciclos 2014-2015 a 2024-2025 &nbsp;·&nbsp; '
+     'carreras agrupadas para ser comparables entre los dos catálogos ANUIES &nbsp;·&nbsp; '
+     'zonas metropolitanas según Metrópolis de México 2020</div>'),
     unsafe_allow_html=True)
 
 serie_completa, serie, res, aviso_recorte = serie_y_modelo(
@@ -729,18 +753,22 @@ if serie.empty or serie.sum() == 0:
 # Se arma antes de bifurcar porque la vista sin proyeccion tambien lleva titulo:
 # antes se calculaba despues del `st.stop()` y por eso esa rama no tenia ninguno.
 etiqueta_mod = etiqueta_modalidades(modalidades)
-segmento = " · ".join([etiqueta_geo] +
+segmento = " · ".join(([comun.MEDIA_SUPERIOR] if es_ems else []) + [etiqueta_geo] +
                       ([", ".join(niveles)] if niveles else []) +
                       ([", ".join(sostenimientos)] if sostenimientos else []) +
                       ([etiqueta_mod] if etiqueta_mod else []) +
                       ([", ".join(grupos)] if grupos else
                        [", ".join(campos)] if campos else []))
-nombre_archivo = etiqueta_geo[:30].replace(" ", "_")
+nombre_archivo = ("EMS_" if es_ems else "") + etiqueta_geo[:30].replace(" ", "_")
 
 # Aviso de seleccion, no de datos: NO ESCOLARIZADA sin MIXTA no es comparable en
 # los 11 ciclos aunque su serie se vea perfectamente proyectable, porque el -40%
 # de 2023-2024 es el desglose de MIXTA. Gemelo de `nota_trasvase` para las areas.
-nota_mod = tax.nota_modalidad(mods_base)
+if es_ems:
+    nota_mod = (comun.NOTA_NO_ESCOLARIZADA_EMS
+                if "NO ESCOLARIZADA" in mods_base else None)
+else:
+    nota_mod = tax.nota_modalidad(mods_base)
 if nota_mod:
     st.warning(nota_mod)
 
@@ -770,13 +798,19 @@ for aviso in res.avisos:
 # modalidad). Los grupos comparables son continuos por construccion, pero un
 # cruce (grupo x zona chica x modalidad) puede seguir teniendo un salto raro en
 # cualquiera de los dos. Si lo tiene, se dice.
-for severidad, texto in tax.quiebres(serie):
+# Los cruces que mira `quiebres` son los de ANUIES; en media superior los
+# quiebres conocidos ya se absorben al construir el panel (preparar_ems.py).
+for severidad, texto in ([] if es_ems else tax.quiebres(serie)):
     (st.warning if severidad == "alto" else st.info)(texto)
 
 st.plotly_chart(grafica(res, segmento, metrica_nombre, confianza), use_container_width=True)
 
-contexto = contexto_externo(filtros, serie, list(res.proyeccion["anio"]),
-                            res.cagr_proyectado)
+# Sin contexto en media superior: los universos de drivers.py salen del
+# crosswalk ANUIES (sin Chiapas, solo municipios con superior) y la cohorte
+# que importa para bachillerato es 15-17, no 12-29. Mejor nada que una tasa
+# de captacion con el denominador equivocado.
+contexto = None if es_ems else contexto_externo(
+    filtros, serie, list(res.proyeccion["anio"]), res.cagr_proyectado)
 bloque_contexto(contexto)
 
 salida = tabla_salida(res, metrica_nombre)
@@ -798,7 +832,9 @@ with der:
     st.caption(
         "El intervalo no sale de la formula del modelo: sale de los errores que este "
         "metodo cometio en backtest sobre 110 segmentos reales. Para un escenario "
-        "conservador usa el limite inferior; para el base, el punto.")
+        "conservador usa el limite inferior; para el base, el punto."
+        + (" Ojo: esos 110 segmentos son de superior; la calibracion no se ha "
+           "medido sobre media superior." if es_ems else ""))
     st.download_button("Descargar CSV", salida.to_csv(index=False).encode("utf-8-sig"),
                        file_name=f"tendencia_{metrica}_{nombre_archivo}.csv",
                        mime="text/csv", use_container_width=True)

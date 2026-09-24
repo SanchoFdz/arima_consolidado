@@ -27,14 +27,20 @@ st.set_page_config(page_title="Descarga masiva", page_icon="📦", layout="wide"
 st.title("Descarga masiva de tendencias")
 st.caption("Proyecta cada categoria —o cada cruce de hasta tres— y entrega todo en un Excel.")
 
-df = cargar()
+# Media superior en su propio panel; getattr por lo mismo que en app.py.
+_cargar_ems = getattr(comun, "cargar_ems", None)
+PANELES = getattr(comun, "PANELES", None) if _cargar_ems else None
+panel = st.radio("Datos", PANELES, horizontal=True) if PANELES else None
+es_ems = bool(PANELES) and panel == comun.MEDIA_SUPERIOR
+
+df = _cargar_ems() if es_ems else cargar()
 
 # Mismo problema que MOTORES_UI (ver abajo), del lado de los datos: si Cloud
 # sigue sirviendo `comun` viejo desde sys.modules, `cargar` puede devolver de
 # cache un panel anterior a la columna Sostenimiento. Se limpia y se relee.
 if "Sostenimiento" not in df.columns:
     st.cache_data.clear()
-    df = cargar()
+    df = _cargar_ems() if es_ems else cargar()
 
 # getattr por la misma razon que MOTORES_UI: nombre nuevo en un modulo importado.
 AYUDA_SOSTENIMIENTO = getattr(comun, "AYUDA_SOSTENIMIENTO",
@@ -50,6 +56,12 @@ DIMENSIONES = {k: v for k, v in CORTES.items() if v} | {
     "Campo de conocimiento": "Campo",
     "Carrera o grupo de carreras": "Grupo_comparable",
 }
+if es_ems:
+    DIMENSIONES = {k: v for k, v in CORTES.items() if v} | {
+        "Subnivel": "Subnivel",
+        "Sostenimiento": "Sostenimiento",
+        "Modalidad": "Modalidad",
+    }
 NINGUNA = "— ninguna —"
 
 # Tope duro. No es estetico: cada combinacion corre su propio backtest de origen
@@ -78,8 +90,9 @@ if "Campo" in dims and "Grupo_comparable" in dims:
 
 st.subheader("Metrica y horizonte")
 m1, m2, m3 = st.columns(3)
-metrica_nombre = m1.selectbox("Metrica", list(METRICAS))
-metrica = METRICAS[metrica_nombre]
+metricas_panel = comun.METRICAS_EMS if es_ems else METRICAS
+metrica_nombre = m1.selectbox("Metrica", list(metricas_panel))
+metrica = metricas_panel[metrica_nombre]
 horizonte = m2.slider("Ciclos a proyectar", 1, 5, 3)
 # Misma lista que la pagina principal, y por la misma razon: MOTORES_UI es el
 # subconjunto ofrecible de MOTORES. Theta y Holt quedan fuera del selector pero
@@ -100,17 +113,21 @@ motor = m3.selectbox("Metodo", list(MOTORES_UI), index=0,
 st.subheader("Filtros fijos (se aplican a todas las categorias)")
 f1, f2, f3 = st.columns(3)
 filtros = {}
-niveles = f1.multiselect("Nivel educativo", opciones(df, "Nivel_educativo"))
-if niveles and "Nivel_educativo" not in dims:
-    filtros["Nivel_educativo"] = niveles
-modalidades = f2.multiselect("Modalidad", opciones_modalidad(df),
-                             help=AYUDA_MODALIDAD)
+col_nivel = "Subnivel" if es_ems else "Nivel_educativo"
+niveles = f1.multiselect("Subnivel" if es_ems else "Nivel educativo",
+                         opciones(df, col_nivel),
+                         help=comun.AYUDA_SUBNIVEL if es_ems else None)
+if niveles and col_nivel not in dims:
+    filtros[col_nivel] = niveles
+modalidades = f2.multiselect(
+    "Modalidad", opciones(df, "Modalidad") if es_ems else opciones_modalidad(df),
+    help=comun.AYUDA_MODALIDAD_EMS if es_ems else AYUDA_MODALIDAD)
 # Igual que en la pagina principal: al filtro van las modalidades BASE, asi que
 # el atajo compuesto y marcar las dos casillas producen el mismo corte.
 mods_base = normalizar_modalidades(modalidades)
 if mods_base and "Modalidad" not in dims:
     filtros["Modalidad"] = mods_base
-campos = f3.multiselect("Campo de conocimiento", opciones(df, "Campo"))
+campos = [] if es_ems else f3.multiselect("Campo de conocimiento", opciones(df, "Campo"))
 if campos and not {"Campo", "Grupo_comparable"} & set(dims):
     filtros["Campo"] = campos
 
@@ -126,10 +143,17 @@ if sostenimientos and "Sostenimiento" not in dims:
 # Los dos avisos de modalidad de la pagina principal, aqui tambien. El primero
 # depende de lo que se filtro; el segundo, de desagregar POR modalidad, que es
 # donde el lote produce filas que no son comparables entre si.
-nota_mod = tax.nota_modalidad(mods_base) if "Modalidad" not in dims else None
+if es_ems:
+    # Un solo quiebre conocido de modalidad en media superior, y aplica igual
+    # si NO ESCOLARIZADA es filtro o es una de las filas del cruce.
+    if "NO ESCOLARIZADA" in mods_base or "Modalidad" in dims:
+        st.warning(comun.NOTA_NO_ESCOLARIZADA_EMS)
+    nota_mod = None
+else:
+    nota_mod = tax.nota_modalidad(mods_base) if "Modalidad" not in dims else None
 if nota_mod:
     st.warning(nota_mod)
-if "Modalidad" in dims:
+if "Modalidad" in dims and not es_ems:
     st.warning(
         "**Desagregar por modalidad no da cuatro series comparables entre si.** "
         "MIXTA y DUAL existen desde 2023-2024 y son 2 ciclos: no llegan al minimo "
@@ -188,7 +212,9 @@ if st.button("Generar proyecciones", type="primary"):
     # estan anidados (estado dentro de region) o se cruzan limpio (una ZM y uno
     # de sus estados): la interseccion sigue siendo un conjunto de municipios y
     # CONAPO se suma sobre el sin ambiguedad.
-    hay_geo = any(d in drivers.COLS_GEO for d in dims)
+    # Sin contexto en media superior, por lo mismo que en la pagina principal:
+    # los universos de drivers.py son los de ANUIES y la cohorte no es 12-29.
+    hay_geo = not es_ems and any(d in drivers.COLS_GEO for d in dims)
 
     filas, barra = [], st.progress(0.0, "Calculando proyecciones...")
     total = len(tabla)
@@ -246,7 +272,7 @@ if st.button("Generar proyecciones", type="primary"):
         # de NO ESCOLARIZADA sin MIXTA se rompe en 2022->2023. Ver taxonomia.py.
         fila["avisos"] = " | ".join(
             res.avisos + [a for a in [aviso_catalogo] if a]
-            + [texto for _, texto in tax.quiebres(serie)])
+            + [texto for _, texto in ([] if es_ems else tax.quiebres(serie))])
         filas.append(fila)
 
     barra.empty()
@@ -274,7 +300,7 @@ if st.button("Generar proyecciones", type="primary"):
         una = descartadas_serie == 1
         motivo = ("serie es demasiado corta o dispersa para proyectarla "
                   f"(el minimo son {pr.MIN_OBS} ciclos)")
-        if "Modalidad" in dims:
+        if "Modalidad" in dims and not es_ems:
             motivo += ("; con Modalidad desagregada eso incluye siempre a MIXTA y "
                        "DUAL, que arrancan en 2023-2024")
         st.caption(f"{descartadas_serie:,} combinacion{'' if una else 'es'} "
@@ -288,11 +314,11 @@ if st.button("Generar proyecciones", type="primary"):
         salida.to_excel(xls, index=False, sheet_name="proyecciones")
         # Sin esta hoja un Excel de solo particulares se ve identico a uno del
         # total: los filtros fijos no aparecen en ninguna columna.
-        pd.DataFrame({"filtro": list(filtros) or ["(ninguno)"],
-                      "valores": [", ".join(map(str, v)) for v in filtros.values()]
-                                 or ["todo el panel"]}
+        pd.DataFrame({"filtro": ["datos"] + list(filtros),
+                      "valores": [panel or "Superior (ANUIES)"]
+                                 + [", ".join(map(str, v)) for v in filtros.values()]}
                      ).to_excel(xls, index=False, sheet_name="filtros")
-    nombre = "_x_".join(d[:18] for d in dims)
+    nombre = ("EMS_" if es_ems else "") + "_x_".join(d[:18] for d in dims)
     if "Sostenimiento" in filtros:
         nombre += "_" + "_".join(filtros["Sostenimiento"])
     st.download_button("Descargar Excel", buffer.getvalue(),

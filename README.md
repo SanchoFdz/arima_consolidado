@@ -16,6 +16,8 @@ versionadas (la de ANUIES pesa 25 MB, la de CONAPO 23 MB). Para regenerarlas:
 
 ```bash
 python preparar_datos.py   # necesita Anuies_agregado_2014_2025.xlsx en ../data/
+python preparar_ems.py     # media superior: ../Formatos 911/EMS (RDS, necesita Rscript)
+                           # y ../data/Educacion Media Superior 911 (CSV 2021-2025)
 python externos.py         # necesita series_historicas/ y ../data/Indice de Rezago Social/
 python rezago.py           # reestima la elasticidad transversal del rezago
 ```
@@ -68,6 +70,36 @@ equivocado** y se revirtió. Ver la sección de abajo: no es un atajo de
 conveniencia, es la única serie de modalidad comparable en los 11 ciclos.
 
 ## Decisiones que conviene conocer antes de usar los números
+
+**Sostenimiento (particular / público) se deriva del tipo de institución.**
+ANUIES no publica sostenimiento: de los 12 valores de `Tipo_inst`, solo
+PARTICULAR es privado. Nacional 2024-2025: 747,087 de NI particular y 923,211
+público. En media superior sale directo de `CONTROL` del 911.
+
+**Media superior es otro panel, no otro nivel del mismo.** Viene del formato
+911 de la SEP (`preparar_ems.py`), no de ANUIES, y se elige con el selector
+*Datos*. No tiene disciplina ni la taxonomía de quiebres de ANUIES, y tampoco
+el bloque de contexto demográfico: `drivers.py` arma sus universos con el
+crosswalk ANUIES (sin Chiapas, solo los 829 municipios con superior) y la
+cohorte de bachillerato es 15-17, no 12-29. Tres homologaciones, todas medidas:
+
+- *NI es primer ingreso a 1er grado* (`MS130`/`MS149` → `V346`/`V414` →
+  `NVO_ING_1`). **No** `NVO_ING` de los CSV nuevos, que es alumnos menos
+  repetidores de todos los grados (~92% de la matrícula). Nacional: 1.95M
+  (2014) → 2.07M (2018) → 1.89M (2020) → 2.04M (2024), sin escalón entre los
+  RDS viejos y los CSV.
+- *Subnivel en dos*: general y tecnológico + profesional técnico. En 2018-2019
+  CONALEP pasa de tecnológico a profesional técnico (PT salta de 28k a 146k de
+  NI y tecnológico cae lo mismo); sumados son continuos.
+- *MIXTA dentro de ESCOLARIZADA*, como hacen los CSV desde 2021-2022 (1,456 de
+  1,464 escuelas MIXTA de 2020-2021 reaparecen como ESCOLARIZADA). NO
+  ESCOLARIZADA tiene un quiebre de cobertura en 2018-2019 que se avisa.
+
+Pendiente de revisar: **Jalisco y Nuevo León** tienen saltos de NI que la
+matrícula no acompaña (Jalisco público: 71k → 93k → 74k → 70k → 97k → 108k
+contra una matrícula que solo va de 269k a 288k). Huele a captura de los
+bachilleratos semestrales de UdeG y UANL, con dos ingresos al año. Los
+intervalos de media superior usan la calibración medida sobre superior.
 
 **Taxonomía: los cortes por disciplina son grupos comparables, no el catálogo.**
 ANUIES cambió de catálogo en el ciclo 2017-2018, y no fue un cambio de nombres:
@@ -509,7 +541,9 @@ con su serie padre y, si el volumen aguanta, la derivada por participación
 
 | Archivo | Rol |
 |---|---|
-| `preparar_datos.py` | Xlsx ancho → panel largo. Homologa taxonomía y asigna ZM |
+| `preparar_datos.py` | Xlsx ancho → panel largo. Homologa taxonomía, asigna ZM y sostenimiento |
+| `preparar_ems.py` | 911 de media superior 2014-2025 → `datos/panel_ems.parquet` |
+| `ems/extraer_rds.R` | Lee los RDS 2014-2021 del 911 (pyreadr no puede) → `ems/rds_2014_2021.csv` |
 | `externos.py` | ETL de las cuatro fuentes externas → parquets + crosswalk geográfico |
 | `drivers.py` | Arma la serie de población de cualquier corte, municipalizada |
 | `rezago.py` | IRS: diagnóstico transversal y la corrección que se midió y se descartó |

@@ -19,3 +19,7 @@ datos/validacion_externos.parquet
 # lee los parquets de datos/, que si van versionados. Para regenerarlos hace
 # falta esta carpeta y correr externos.py. Ver README.
 series_historicas/
+
+# Intermedio de ems/extraer_rds.R. Se regenera con preparar_ems.py si estan los
+# RDS del 911 (3 GB, fuera del repo); la app lee datos/panel_ems.parquet.
+ems/rds_2014_2021.csv

@@ -10,12 +10,26 @@ from taxonomia import MODALIDADES_ONLINE
 RAIZ = Path(__file__).resolve().parent
 PANEL = RAIZ / "datos" / "panel_ni.parquet"
 CONCORDANCIA = RAIZ / "datos" / "concordancia_areas.parquet"
+PANEL_EMS = RAIZ / "datos" / "panel_ems.parquet"
+
+# Dos paneles con el mismo esquema geografico. Superior es el agregado ANUIES;
+# media superior es el 911 de la SEP (ver preparar_ems.py). No se juntan en uno:
+# no comparten disciplina, ni modalidades, ni la taxonomia de quiebres.
+SUPERIOR = "Superior (ANUIES)"
+MEDIA_SUPERIOR = "Media superior (911)"
+PANELES = [SUPERIOR, MEDIA_SUPERIOR]
 
 METRICAS = {
     "Nuevo ingreso (NI)": "NI",
     "Matricula total": "Matricula",
     "Egresados": "Egresados",
     "Solicitudes de nuevo ingreso": "Sols_NI",
+}
+
+# El 911 de media superior no trae egresados del mismo ciclo ni solicitudes.
+METRICAS_EMS = {
+    "Nuevo ingreso (NI)": "NI",
+    "Matricula total": "Matricula",
 }
 
 # Los cortes por disciplina NO usan las columnas crudas del panel. ANUIES cambio
@@ -91,6 +105,24 @@ AYUDA_SOSTENIMIENTO = (
     "Vacio = particulares y publicas sumadas. ANUIES no publica sostenimiento: "
     "se deriva del tipo de institucion, donde solo PARTICULAR es privado y los "
     "otros 11 tipos (UPES, TecNM, normales, politecnicas...) son publicos.")
+
+AYUDA_SUBNIVEL = (
+    "Vacio = los dos sumados. Son dos y no tres porque en 2018-2019 el 911 movio "
+    "a CONALEP (profesional tecnico bachiller) de tecnologico a profesional "
+    "tecnico: por separado, las dos series saltan ese ciclo sin que cambie el "
+    "mercado. Juntas son continuas.")
+
+AYUDA_MODALIDAD_EMS = (
+    "Vacio = las dos sumadas. ESCOLARIZADA incluye MIXTA, que el 911 dejo de "
+    "reportar aparte en 2021-2022. NO ESCOLARIZADA tiene un quiebre de cobertura "
+    "en 2018-2019 (ver el aviso al elegirla).")
+
+NOTA_NO_ESCOLARIZADA_EMS = (
+    "**NO ESCOLARIZADA de media superior cambia de cobertura en 2018-2019.** Hasta "
+    "2017-2018 la virtual iba en archivos aparte que no reportan nuevo ingreso; "
+    "desde 2018-2019 va en los principales. La matrícula nacional pasa de 185 mil "
+    "a 369 mil ese ciclo por eso, no por mercado; en nuevo ingreso el efecto es "
+    "menor (75 mil → 82 mil). Lee el crecimiento previo a 2018 con cuidado.")
 
 SIN_ZM = "Fuera de zona metropolitana"
 
@@ -186,6 +218,19 @@ def _cargar(_version):
     df["Grupo_comparable"] = ae.map(grupo).astype("category")
     df["Campo"] = df["Grupo_comparable"].astype(str).map(campo).astype("category")
     return df
+
+
+def cargar_ems():
+    """Panel de media superior. Misma cache por fecha de archivo que `cargar`."""
+    if not PANEL_EMS.exists():
+        st.error("Falta el panel de media superior. Corre: python preparar_ems.py")
+        st.stop()
+    return _cargar_ems(PANEL_EMS.stat().st_mtime)
+
+
+@st.cache_data(show_spinner=False)
+def _cargar_ems(_version):
+    return pd.read_parquet(PANEL_EMS)
 
 
 @st.cache_data(show_spinner=False)
