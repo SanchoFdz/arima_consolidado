@@ -19,8 +19,9 @@ import drivers
 import metodos
 import pronostico as pr
 import taxonomia as tax
-from comun import (AYUDA_MODALIDAD, CORTES, METRICAS, SIN_ZM, aplicar_filtros,
-                   cargar, normalizar_modalidades, opciones, opciones_modalidad)
+import comun
+from comun import (AYUDA_MODALIDAD, CORTES, METRICAS, SIN_ZM,
+                   aplicar_filtros, cargar, normalizar_modalidades, opciones, opciones_modalidad)
 
 st.set_page_config(page_title="Descarga masiva", page_icon="📦", layout="wide")
 st.title("Descarga masiva de tendencias")
@@ -28,8 +29,21 @@ st.caption("Proyecta cada categoria —o cada cruce de hasta tres— y entrega t
 
 df = cargar()
 
+# Mismo problema que MOTORES_UI (ver abajo), del lado de los datos: si Cloud
+# sigue sirviendo `comun` viejo desde sys.modules, `cargar` puede devolver de
+# cache un panel anterior a la columna Sostenimiento. Se limpia y se relee.
+if "Sostenimiento" not in df.columns:
+    st.cache_data.clear()
+    df = cargar()
+
+# getattr por la misma razon que MOTORES_UI: nombre nuevo en un modulo importado.
+AYUDA_SOSTENIMIENTO = getattr(comun, "AYUDA_SOSTENIMIENTO",
+                              "Vacio = particulares y publicas sumadas.")
+
 DIMENSIONES = {k: v for k, v in CORTES.items() if v} | {
     "Nivel educativo": "Nivel_educativo",
+    "Sostenimiento": "Sostenimiento",
+    "Tipo de institucion": "Tipo_inst",
     "Modalidad": "Modalidad",
     # Disciplina: los grupos comparables, no las columnas crudas del catalogo.
     # Ver comun.py y concordancia.py.
@@ -99,6 +113,15 @@ if mods_base and "Modalidad" not in dims:
 campos = f3.multiselect("Campo de conocimiento", opciones(df, "Campo"))
 if campos and not {"Campo", "Grupo_comparable"} & set(dims):
     filtros["Campo"] = campos
+
+f4, _, _ = st.columns(3)
+sostenimientos = f4.multiselect("Sostenimiento", opciones(df, "Sostenimiento"),
+                                help=AYUDA_SOSTENIMIENTO)
+# Tipo de institucion es el detalle del sostenimiento, igual que carrera lo es de
+# campo: si se desagrega por tipo, el filtro de sostenimiento sigue sirviendo para
+# quedarse solo con los tipos publicos.
+if sostenimientos and "Sostenimiento" not in dims:
+    filtros["Sostenimiento"] = sostenimientos
 
 # Los dos avisos de modalidad de la pagina principal, aqui tambien. El primero
 # depende de lo que se filtro; el segundo, de desagregar POR modalidad, que es
@@ -263,7 +286,15 @@ if st.button("Generar proyecciones", type="primary"):
     buffer = BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as xls:
         salida.to_excel(xls, index=False, sheet_name="proyecciones")
+        # Sin esta hoja un Excel de solo particulares se ve identico a uno del
+        # total: los filtros fijos no aparecen en ninguna columna.
+        pd.DataFrame({"filtro": list(filtros) or ["(ninguno)"],
+                      "valores": [", ".join(map(str, v)) for v in filtros.values()]
+                                 or ["todo el panel"]}
+                     ).to_excel(xls, index=False, sheet_name="filtros")
     nombre = "_x_".join(d[:18] for d in dims)
+    if "Sostenimiento" in filtros:
+        nombre += "_" + "_".join(filtros["Sostenimiento"])
     st.download_button("Descargar Excel", buffer.getvalue(),
                        file_name=f"tendencia_{metrica}_por_{nombre}.xlsx",
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

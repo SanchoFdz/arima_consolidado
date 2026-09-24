@@ -5,7 +5,8 @@ Hace tres cosas:
  1. Homologa el area de conocimiento a la taxonomia 2014 (ANUIES cambio de catalogo
     en el ciclo 2017-2018; sin homologar, la serie se rompe a la mitad).
  2. Asigna Zona Metropolitana segun la delimitacion Metropolis de Mexico 2020.
- 3. Deja una fila por (corte geografico x nivel x modalidad x area x ciclo).
+ 3. Separa sostenimiento: Particular contra Publico, a partir de `Tipo_inst`.
+ 4. Deja una fila por (corte geografico x sostenimiento x nivel x modalidad x area x ciclo).
 
 Salida: datos/panel_ni.parquet
 """
@@ -34,8 +35,19 @@ AREA_A_2014 = {
 
 DIMENSIONES = [
     "Estado", "Municipio", "Zona_Metropolitana", "Nielsen_Region", "Nielsen_Area",
-    "Nivel_educativo", "Modalidad", "Area_2014", "Subarea", "Area_especifica",
+    "Sostenimiento", "Tipo_inst", "Nivel_educativo", "Modalidad", "Area_2014", "Subarea", "Area_especifica",
 ]
+
+
+# ANUIES no trae una columna de sostenimiento: trae el tipo de institucion, y de
+# los 12 tipos solo PARTICULAR es privado. Los otros 11 (UPES, TecNM, normales,
+# politecnicas, interculturales, centros CONACYT...) son publicos.
+PARTICULAR = "PARTICULAR"
+PREFIJO_TIPO = "TIPO DE INSTITUCIÓN:"
+
+
+def sostenimiento(tipo_inst):
+    return tipo_inst.map(lambda t: "Particular" if t == PARTICULAR else "Publico")
 
 
 def normalizar(texto):
@@ -50,6 +62,8 @@ def mapa_zonas():
 def cargar_ancho():
     df = pd.read_excel(FUENTE)
     df["Area_2014"] = df["Area"].replace(AREA_A_2014)
+    df["Tipo_inst"] = df["Tipo_inst"].str.replace(PREFIJO_TIPO, "", regex=False).str.strip()
+    df["Sostenimiento"] = sostenimiento(df["Tipo_inst"])
     clave = list(zip(df["Estado"].map(normalizar), df["Municipio"].map(normalizar)))
     zonas = mapa_zonas()
     df["Zona_Metropolitana"] = [zonas.get(k, "Fuera de zona metropolitana") for k in clave]

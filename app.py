@@ -13,6 +13,7 @@ import contexto as ctx
 import metodos
 import taxonomia as tax
 import pronostico as pr
+import comun
 from comun import (AYUDA_MODALIDAD, CORTES, METRICAS, MODALIDAD_ONLINE, SIN_ZM,
                    aplicar_filtros, cargar, etiqueta_modalidades,
                    normalizar_modalidades, opciones, opciones_modalidad)
@@ -586,6 +587,17 @@ def bloque_contexto(c):
 # ------------------------------------------------------------------ sidebar
 df = cargar()
 
+# Mismo problema que MOTORES_UI (ver abajo), del lado de los datos: si Cloud
+# sigue sirviendo `comun` viejo desde sys.modules, `cargar` puede devolver de
+# cache un panel anterior a la columna Sostenimiento. Se limpia y se relee.
+if "Sostenimiento" not in df.columns:
+    st.cache_data.clear()
+    df = cargar()
+
+# getattr por la misma razon que MOTORES_UI: nombre nuevo en un modulo importado.
+AYUDA_SOSTENIMIENTO = getattr(comun, "AYUDA_SOSTENIMIENTO",
+                              "Vacio = particulares y publicas sumadas.")
+
 st.sidebar.header("Corte")
 corte = st.sidebar.selectbox("Nivel geografico", list(CORTES))
 col_geo = CORTES[corte]
@@ -613,6 +625,11 @@ niveles = st.sidebar.multiselect("Nivel educativo", opciones(df, "Nivel_educativ
                                  help="Vacio = todos los niveles sumados")
 if niveles:
     filtros["Nivel_educativo"] = niveles
+
+sostenimientos = st.sidebar.multiselect(
+    "Sostenimiento", opciones(df, "Sostenimiento"), help=AYUDA_SOSTENIMIENTO)
+if sostenimientos:
+    filtros["Sostenimiento"] = sostenimientos
 
 modalidades = st.sidebar.multiselect(
     "Modalidad", opciones_modalidad(df), help=AYUDA_MODALIDAD)
@@ -714,6 +731,7 @@ if serie.empty or serie.sum() == 0:
 etiqueta_mod = etiqueta_modalidades(modalidades)
 segmento = " · ".join([etiqueta_geo] +
                       ([", ".join(niveles)] if niveles else []) +
+                      ([", ".join(sostenimientos)] if sostenimientos else []) +
                       ([etiqueta_mod] if etiqueta_mod else []) +
                       ([", ".join(grupos)] if grupos else
                        [", ".join(campos)] if campos else []))

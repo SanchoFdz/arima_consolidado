@@ -87,6 +87,11 @@ AYUDA_MODALIDAD = (
     "sola cae -40.2% ese ciclo por reclasificacion, no por mercado)."
 )
 
+AYUDA_SOSTENIMIENTO = (
+    "Vacio = particulares y publicas sumadas. ANUIES no publica sostenimiento: "
+    "se deriva del tipo de institucion, donde solo PARTICULAR es privado y los "
+    "otros 11 tipos (UPES, TecNM, normales, politecnicas...) son publicos.")
+
 SIN_ZM = "Fuera de zona metropolitana"
 
 
@@ -153,11 +158,21 @@ def _campo_de_cada_grupo(conc):
     return dict(zip(dominante["grupo"], dominante["campo"]))
 
 
-@st.cache_data(show_spinner=False)
 def cargar():
+    """Panel con disciplina comparable. La cache va atada a la fecha del parquet.
+
+    Sin eso, regenerar el panel con una columna nueva (Sostenimiento) no invalida
+    `st.cache_data`, porque el codigo de la funcion no cambio, y la app sigue
+    sirviendo el DataFrame viejo sin la columna.
+    """
     if not PANEL.exists():
         st.error("Falta el panel de datos. Corre primero: python preparar_datos.py")
         st.stop()
+    return _cargar(PANEL.stat().st_mtime)
+
+
+@st.cache_data(show_spinner=False)
+def _cargar(_version):
     df = pd.read_parquet(PANEL)
 
     if not CONCORDANCIA.exists():
