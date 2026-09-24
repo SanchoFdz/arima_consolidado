@@ -1,38 +1,38 @@
 {
   "indicador": "basica_incompleta",
-  "elasticidad": -0.020909563257773364,
-  "intercepto": -2.8184265874568086,
-  "error_estandar": 0.00329287482656109,
-  "t": -6.349941725422416,
-  "r2": 0.0663927469383283,
-  "n_municipios": 569,
+  "elasticidad": -0.01934724318579672,
+  "intercepto": -2.8686870278625496,
+  "error_estandar": 0.003206941913246993,
+  "t": -6.0329259803174455,
+  "r2": 0.05876076754401882,
+  "n_municipios": 585,
   "anio_indicadores": 2020,
   "ciclos_ni": [
-    2022,
     2023,
-    2024
+    2024,
+    2025
   ],
   "candidatos": {
     "irs": {
-      "pendiente": -0.21774456508966464,
-      "intercepto": -3.645847034568376,
-      "error_estandar": 0.052083158628550154,
-      "t": -4.180709673209119,
-      "r2": 0.02990415961330395
+      "pendiente": -0.21540784002176508,
+      "intercepto": -3.6434222191215038,
+      "error_estandar": 0.05054679948866431,
+      "t": -4.2615525058134045,
+      "r2": 0.030209602590143714
     },
     "basica_incompleta": {
-      "pendiente": -0.020909563257773364,
-      "intercepto": -2.8184265874568086,
-      "error_estandar": 0.00329287482656109,
-      "t": -6.349941725422416,
-      "r2": 0.0663927469383283
+      "pendiente": -0.01934724318579672,
+      "intercepto": -2.8686870278625496,
+      "error_estandar": 0.003206941913246993,
+      "t": -6.0329259803174455,
+      "r2": 0.05876076754401882
     },
     "analfabeta": {
-      "pendiente": -0.029690177054557298,
-      "intercepto": -3.3401176529080536,
-      "error_estandar": 0.008467727160510235,
-      "t": -3.506274646285164,
-      "r2": 0.021222320106637493
+      "pendiente": -0.03056411994280331,
+      "intercepto": -3.3360227618772034,
+      "error_estandar": 0.008253427777670689,
+      "t": -3.703203174018592,
+      "r2": 0.02298206565745453
     }
   },
   "nota": "Asociacion transversal entre tasa de captacion y rezago, no efecto causal. Solo se aplica al CAMBIO DE RITMO del rezago proyectado (el nivel ya esta en la tasa historica) y se acota a +/-6%."

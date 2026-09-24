@@ -74,9 +74,10 @@ def tabla_zonas(df):
                     Municipios=("Municipio", "size"),
                     Con_oferta=("Tiene oferta de educacion superior", "sum"))
                .reset_index())
-    resumen["NI 2024-2025"] = resumen["Zona metropolitana"].map(ni).fillna(0).astype(int)
+    col_ni = f"NI {df['ciclo'].astype(str).max()}"
+    resumen[col_ni] = resumen["Zona metropolitana"].map(ni).fillna(0).astype(int)
     resumen = resumen.rename(columns={"Con_oferta": "Con oferta"})
-    return detalle, resumen.sort_values("NI 2024-2025", ascending=False)
+    return detalle, resumen.sort_values(col_ni, ascending=False)
 
 
 @st.cache_data(show_spinner=False)
@@ -90,11 +91,13 @@ def tabla_nielsen(df):
          .rename(columns={"Nielsen_Region": "Region Nielsen",
                           "Nielsen_Area": "Area Nielsen",
                           "Cuantos": "Estados (n)"}))
-    t["NI acumulado 2014-2025"] = t["Region Nielsen"].map(ni).fillna(0).astype(int)
-    return t.sort_values("NI acumulado 2014-2025", ascending=False)
+    col_ni = f"NI acumulado {int(df['anio'].min())}-{int(df['anio'].max()) + 1}"
+    t[col_ni] = t["Region Nielsen"].map(ni).fillna(0).astype(int)
+    return t.sort_values(col_ni, ascending=False)
 
 
 detalle_zm, resumen_zm = tabla_zonas(df)
+COL_NI_ZM = next(c for c in resumen_zm.columns if c.startswith("NI "))
 nielsen = tabla_nielsen(df)
 
 zm, nl = st.tabs(["Zonas metropolitanas", "Regiones Nielsen"])
@@ -139,7 +142,7 @@ with zm:
             continue
         r = resumen_zm[resumen_zm["Zona metropolitana"] == zona].iloc[0]
         with st.expander(f"**{zona}** — {plural(r['Municipios'], 'municipio', 'municipios')}"
-                         f" · {r['Estados']} · NI 2024-2025: {r['NI 2024-2025']:,}",
+                         f" · {r['Estados']} · {COL_NI_ZM}: {r[COL_NI_ZM]:,}",
                          expanded=bool(busca)):
             for estado, g in bloque.groupby("Estado"):
                 nombres = [m if oferta else f"{m} ○" for m, oferta in

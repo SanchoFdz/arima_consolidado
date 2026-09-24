@@ -36,7 +36,7 @@ METRICAS_EMS = {
 # de catalogo en 2017-2018 y `Subarea`/`Area_especifica` traen los dos catalogos
 # revueltos: 10 de 38 subareas existen solo hasta 2016 y 16 solo desde 2017, asi
 # que cualquier serie a ese nivel tiene 3 u 8 ciclos, no 11. En vez de eso se usa
-# la concordancia de `concordancia.py`: 69 grupos comparables, cada uno un
+# la concordancia de `concordancia.py`: 68 grupos comparables, cada uno un
 # conjunto de categorias viejas + nuevas cuyo agregado si es continuo en el cruce
 # 2016-2017. El campo se reconstruye sumando grupos, y eso arregla de paso el
 # nivel area, que estaba roto para dos areas porque el catalogo nuevo movio
@@ -66,12 +66,12 @@ CORTES = {
 # tener el mismo corte con dos nombres invita a reportar cifras que parecen de
 # universos distintos. El argumento estaba equivocado y los numeros lo dicen:
 #
-#   NO ESCOLARIZADA sola   437,882 -> 261,678 -> 297,016   -40.2% / +13.5%
-#   NO ESCOLARIZADA+MIXTA  437,882 -> 475,083 -> 540,301    +8.5% / +13.7%
+#   NO ESCOLARIZADA sola   356,200 -> 184,576 -> 210,255 -> 252,951   -48.2% / +13.9% / +20.3%
+#   NO ESCOLARIZADA+MIXTA  356,200 -> 379,985 -> 432,140 -> 477,639   +6.7% / +13.7% / +10.5%
 #
-# El -40.2% es el desglose de MIXTA en 2023-2024, no mercado (ver taxonomia.py).
+# El -48.2% es el desglose de MIXTA en 2023-2024, no mercado (ver taxonomia.py).
 # O sea que la suma no es un corte mas entre los 15 posibles: es la UNICA serie
-# de modalidad comparable en los 11 ciclos que se puede pedir de este panel, y
+# de modalidad comparable en toda la serie que se puede pedir de este panel, y
 # esconderla detras de "marca estas dos y no estas otras" es esconder el camino
 # correcto. Se devuelve como atajo, no como modo: sigue siendo un multiselect y
 # se puede combinar con lo que sea.
@@ -96,9 +96,9 @@ PRESETS_EN_SELECTOR = [MODALIDAD_ONLINE]
 AYUDA_MODALIDAD = (
     "Vacio = todas las modalidades sumadas. Se pueden combinar varias. "
     f"**{MODALIDAD_ONLINE}** es un atajo: equivale exactamente a marcar esas dos "
-    "casillas, y es la unica serie de modalidad comparable en los 11 ciclos "
+    "casillas, y es la unica serie de modalidad comparable en toda la serie "
     "porque ANUIES empezo a desglosar MIXTA hasta 2023-2024 (NO ESCOLARIZADA "
-    "sola cae -40.2% ese ciclo por reclasificacion, no por mercado)."
+    "sola cae -48.2% ese ciclo por reclasificacion, no por mercado)."
 )
 
 AYUDA_SOSTENIMIENTO = (

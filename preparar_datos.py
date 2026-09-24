@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Convierte el agregado ANUIES ancho (2014-2025) en una tabla larga lista para ARIMA.
+"""Convierte el agregado ANUIES ancho (2014-2026) en una tabla larga lista para ARIMA.
 
 Hace tres cosas:
  1. Homologa el area de conocimiento a la taxonomia 2014 (ANUIES cambio de catalogo
@@ -19,7 +19,7 @@ import pandas as pd
 from zonas import pares_zona
 
 RAIZ = Path(__file__).resolve().parent
-FUENTE = RAIZ.parent / "data" / "Anuies_agregado_2014_2025.xlsx"
+FUENTE = RAIZ.parent / "data" / "Anuies_agregado_2014_2026.xlsx"
 SALIDA = RAIZ / "datos" / "panel_ni.parquet"
 
 METRICAS = ["Matricula", "NI", "Egresados", "Sols_NI"]

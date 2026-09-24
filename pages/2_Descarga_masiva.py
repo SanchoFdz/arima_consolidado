@@ -158,7 +158,7 @@ if "Modalidad" in dims and not es_ems:
         "**Desagregar por modalidad no da cuatro series comparables entre si.** "
         "MIXTA y DUAL existen desde 2023-2024 y son 2 ciclos: no llegan al minimo "
         f"de {pr.MIN_OBS} para proyectar, asi que no van a aparecer en el Excel. Y "
-        "NO ESCOLARIZADA sola si aparece, pero su caida de -40.2% en 2023-2024 es "
+        "NO ESCOLARIZADA sola si aparece, pero su caida de -48.2% en 2023-2024 es "
         "el desglose de MIXTA, no mercado (viene marcada en la columna `avisos`). "
         "Para la serie de online comparable, quita Modalidad de la desagregacion y "
         "ponla como filtro fijo con la opcion *Online (no escolarizada + mixta)*.")
@@ -217,6 +217,7 @@ if st.button("Generar proyecciones", type="primary"):
     hay_geo = not es_ems and any(d in drivers.COLS_GEO for d in dims)
 
     filas, barra = [], st.progress(0.0, "Calculando proyecciones...")
+    ultimo = int(tabla.columns.max())
     total = len(tabla)
 
     for i, (clave, valores) in enumerate(tabla.iterrows(), 1):
@@ -227,7 +228,7 @@ if st.button("Generar proyecciones", type="primary"):
 
         serie = valores.astype(float).sort_index()
         # Mismo recorte que en la pagina principal: una categoria que solo vive
-        # en uno de los dos catalogos ANUIES no tiene 11 ciclos, tiene los que
+        # en uno de los dos catalogos ANUIES no tiene la serie completa, tiene los que
         # tiene. Ver taxonomia.py.
         serie, aviso_catalogo = tax.recortar(serie)
         res = pr.proyectar(serie, horizonte, motor=motor)
@@ -236,7 +237,7 @@ if st.button("Generar proyecciones", type="primary"):
 
         fila = dict(zip(dim_nombres, clave))
         fila.update({
-            f"{metrica}_2024-2025": int(serie.iloc[-1]),
+            f"{metrica}_{ultimo}-{ultimo + 1}": int(serie.iloc[-1]),
             "metodo": res.motor,
             "confiabilidad": res.confiabilidad,
             "CAGR_historico_%": round(res.cagr_historico, 2) if res.cagr_historico is not None else None,

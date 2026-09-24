@@ -26,7 +26,7 @@ def serie_y_modelo(df, filtros, metrica, horizonte, nivel, motor):
     """Serie del corte, su recorte, y la proyeccion si la serie da para una.
 
     Se devuelve tambien la serie SIN recortar, con sus ceros de punta. Ese es el
-    eje completo 2014-2015 … 2024-2025 y la vista historica lo necesita: sin el
+    eje completo, del primer al ultimo ciclo del panel, y la vista historica lo necesita: sin el
     no hay forma de dibujar "aqui no habia dato" a escala, solo de dibujar dos
     puntos sueltos como si fueran toda la historia del corte.
     """
@@ -191,7 +191,7 @@ def grafica(res, etiqueta, metrica_nombre, confianza):
     # anotacion que add_vrect ya dejo puesta, y la primera se pierde.
     anotaciones = [
         dict(x=hist_x[len(hist_x) // 3], y=res.historico.iloc[len(hist_x) // 3],
-             text="<b>Observado</b><br>2014-2015 a 2024-2025", showarrow=False,
+             text=f"<b>Observado</b><br>{hist_x[0]} a {hist_x[-1]}", showarrow=False,
              yshift=-34, font=dict(size=11, color=TINTA_SUAVE), align="center"),
         # Anclada por dentro del borde superior de la banda, a media anchura: asi
         # queda siempre dentro del area de trazo aunque el limite inferior llegue a
@@ -247,13 +247,13 @@ def grafica_historica(serie, anios_eje, etiqueta, metrica_nombre, padre=None,
 
     Tres decisiones de lectura:
 
-      * **El eje va completo**, 2014-2015 a 2024-2025, aunque la serie tenga dos
+      * **El eje va completo**, del primer al ultimo ciclo, aunque la serie tenga dos
         puntos. Recortarlo a los dos ciclos con dato dibuja un segmento que
         ocupa toda la pantalla y sugiere una historia larga que no existe.
       * **El tramo sin dato es una zona gris rotulada**, no una linea en cero ni
         un hueco mudo. Una linea en cero afirma que habia cero alumnos, que es
         falso; un hueco deja al lector suponiendo cual de las dos cosas es.
-      * **El padre va detras en gris**, por los 11 ciclos. Es lo que contesta de
+      * **El padre va detras en gris**, por todos los ciclos. Es lo que contesta de
         donde salio la serie corta y que proporcion ocupa, que es justo la
         lectura que la modalidad nueva necesita.
     """
@@ -339,7 +339,7 @@ def grafica_historica(serie, anios_eje, etiqueta, metrica_nombre, padre=None,
             x=f"{int(padre.index[i])}-{int(padre.index[i]) + 1}",
             y=float(padre.iloc[i]),
             text=f"<b>{etiqueta_padre}</b><br>"
-                 "<span style='font-size:10px'>serie de referencia, 11 ciclos</span>",
+                 f"<span style='font-size:10px'>serie de referencia, {len(padre)} ciclos</span>",
             showarrow=False, yshift=20,
             font=dict(size=11, color=TINTA_SUAVE), align="left"))
     if derivada is not None:
@@ -389,8 +389,8 @@ def cta_sin_proyeccion(mods_base, mods_padre, etiqueta_padre, n_ciclos):
         return (f"**Para proyectar esta matrícula, pide «{MODALIDAD_ONLINE}»** en el "
                 f"filtro de Modalidad —o marca NO ESCOLARIZADA y MIXTA, que es lo "
                 f"mismo—. {falta}, porque ANUIES desglosó MIXTA hasta 2023-2024. "
-                f"Online sí tiene los 11 ciclos y es la única serie de modalidad "
-                f"comparable: 437,882 → 475,083 → 540,301 a nivel nacional.")
+                f"Online sí tiene la serie completa y es la única serie de modalidad "
+                f"comparable: 356,200 → 379,985 → 432,140 → 477,639 a nivel nacional.")
     if mods_padre is None and etiqueta_padre:
         return (f"**Para proyectar, quita el filtro de Modalidad** y trabaja sobre "
                 f"{etiqueta_padre.lower()}. {falta}: esta modalidad se reporta por "
@@ -459,7 +459,7 @@ def vista_historica(df, filtros, mods_base, serie, serie_completa, metrica,
         st.subheader("Proyección derivada por participación")
         st.caption(
             f"No es una proyección de este corte: es la proyección de "
-            f"**{etiqueta_padre}** —serie continua de 11 ciclos, motor y calibración "
+            f"**{etiqueta_padre}** —serie continua en todos los ciclos, motor y calibración "
             f"ya validados— repartida por la participación observada de este corte "
             f"dentro de ella. Por eso no lleva semáforo de confiabilidad ni MAPE: no "
             f"tiene backtest propio, y el del padre no es el suyo.")
@@ -657,7 +657,7 @@ mods_base = normalizar_modalidades(modalidades)
 if mods_base:
     filtros["Modalidad"] = mods_base
 
-# Disciplina: dos niveles, los dos con serie continua de 11 ciclos. No son las
+# Disciplina: dos niveles, los dos con serie continua en todos los ciclos. No son las
 # columnas crudas del panel, son los grupos comparables de concordancia.py.
 # Media superior no tiene disciplina: el bachillerato no se elige por carrera.
 campos, grupos = [], []
@@ -668,11 +668,11 @@ if not es_ems:
                            "Grupo_comparable")
     grupos = st.sidebar.multiselect(
         "Carrera o grupo de carreras", disponibles,
-        help="69 grupos comparables entre los dos catalogos ANUIES. Cada uno junta "
+        help="68 grupos comparables entre los dos catalogos ANUIES. Cada uno junta "
              "las categorias viejas y nuevas que se corresponden, porque el catalogo "
              "cambio en 2017-2018: 'Desarrollo de software' no existia antes de 2017 "
              "y 'Ciencias de la computacion' desaparecio ese ano. Agrupadas, la serie "
-             "cubre los 11 ciclos.")
+             "cubre todos los ciclos.")
 if campos:
     filtros["Campo"] = campos
 if grupos:
@@ -729,12 +729,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("Tendencias de Nuevo Ingreso")
+_a0, _a1 = int(df["anio"].min()), int(df["anio"].max())
+rango_ciclos = f"{_a0}-{_a0 + 1} a {_a1}-{_a1 + 1}"
 st.markdown(
-    ('<div class="sub">Media superior, formato 911 de la SEP, ciclos 2014-2015 a '
-     '2024-2025 &nbsp;·&nbsp; nuevo ingreso a primer grado &nbsp;·&nbsp; '
+    (f'<div class="sub">Media superior, formato 911 de la SEP, ciclos {rango_ciclos} '
+     '&nbsp;·&nbsp; nuevo ingreso a primer grado &nbsp;·&nbsp; '
      'zonas metropolitanas según Metrópolis de México 2020</div>')
     if es_ems else
-    ('<div class="sub">Agregado ANUIES, ciclos 2014-2015 a 2024-2025 &nbsp;·&nbsp; '
+    (f'<div class="sub">Agregado ANUIES, ciclos {rango_ciclos} &nbsp;·&nbsp; '
      'carreras agrupadas para ser comparables entre los dos catálogos ANUIES &nbsp;·&nbsp; '
      'zonas metropolitanas según Metrópolis de México 2020</div>'),
     unsafe_allow_html=True)
@@ -762,7 +764,7 @@ segmento = " · ".join(([comun.MEDIA_SUPERIOR] if es_ems else []) + [etiqueta_ge
 nombre_archivo = ("EMS_" if es_ems else "") + etiqueta_geo[:30].replace(" ", "_")
 
 # Aviso de seleccion, no de datos: NO ESCOLARIZADA sin MIXTA no es comparable en
-# los 11 ciclos aunque su serie se vea perfectamente proyectable, porque el -40%
+# toda la serie aunque se vea perfectamente proyectable, porque el -48%
 # de 2023-2024 es el desglose de MIXTA. Gemelo de `nota_trasvase` para las areas.
 if es_ems:
     nota_mod = (comun.NOTA_NO_ESCOLARIZADA_EMS
@@ -779,7 +781,7 @@ if res is None:
     st.stop()
 
 c1, c2, c3, c4 = st.columns(4)
-c1.metric(f"{metrica_nombre} 2024-2025", f"{int(serie.iloc[-1]):,}")
+c1.metric(f"{metrica_nombre} {int(serie.index[-1])}-{int(serie.index[-1]) + 1}", f"{int(serie.iloc[-1]):,}")
 ultimo = res.proyeccion.iloc[-1]
 c2.metric(f"Proyectado {ultimo['ciclo']}", f"{int(ultimo['pronostico']):,}",
           f"{res.cagr_proyectado:+.2f}% anual" if res.cagr_proyectado is not None else None)

@@ -47,10 +47,16 @@ import numpy as np
 import pandas as pd
 
 RAIZ = Path(__file__).resolve().parent
-FUENTE = RAIZ.parent / "data" / "Anuies_agregado_2014_2025.xlsx"
+FUENTE = RAIZ.parent / "data" / "Anuies_agregado_2014_2026.xlsx"
 CACHE = RAIZ / "datos" / "flujo_reclasificacion.parquet"
 SALIDA = RAIZ / "datos" / "concordancia_areas.parquet"
 
+# Ventana de estimacion, fija aunque la fuente traiga ciclos posteriores. El flujo
+# compara lo que desaparece hasta 2016 contra lo que aparece "despues": cada ciclo
+# nuevo mete ahi oferta que simplemente abrio ese anio, no reclasificacion. Con
+# 2025-2026 adentro cambiaban 9 de 68 grupos (Biologia + Farmacia terminaban con
+# los planes de ingenieria). Un ciclo que ya usa el catalogo nuevo no dice nada
+# del quiebre de 2017, y todas sus areas especificas ya estan en esta ventana.
 ANIOS = list(range(2014, 2025))
 ULTIMO_VIEJO = 2016            # ultimo ciclo del catalogo anterior
 COL_NI = [f"{a}_{a+1}_NI" for a in ANIOS]
@@ -507,7 +513,7 @@ def main():
     for _, r in tab.iterrows():
         marca = r.estado + (" (fragil)" if r.fragil else "")
         print(f"\n[{r.n_ae} AE] {r.grupo}")
-        print(f"    NI/anio  2014-2016 {r.ni_prom_viejo:>9,.0f}   2017-2024 {r.ni_prom_nuevo:>9,.0f}"
+        print(f"    NI/anio  2014-2016 {r.ni_prom_viejo:>9,.0f}   2017-{ANIOS[-1]} {r.ni_prom_nuevo:>9,.0f}"
               f"   salto 2016->2017 {r.salto_pct:+.1f}%  limite {r.limite_pct:.1f}%   {marca}")
         if r.viejas:
             print(f"    viejas : {r.viejas[:260]}")

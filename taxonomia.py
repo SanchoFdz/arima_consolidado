@@ -11,10 +11,11 @@ Son dos, y conviene no confundirlos porque piden avisos distintos:
      (y DUAL) como modalidades propias. Es un problema de modalidad, no de
      areas: no se reclasifico ninguna carrera, se partio en dos una columna que
      antes venia junta. Verificado sobre el panel: NO ESCOLARIZADA sola pasa de
-     437,882 a 261,678 de nuevo ingreso nacional entre 2022-2023 y 2023-2024
-     (-40.2%) mientras NO ESCOLARIZADA + MIXTA pasa de 437,882 a 475,083
-     (+8.5%) y luego a 540,301 (+13.7%). No se fue un solo alumno: MIXTA es el
-     44.9% del online ese ciclo y el 45.0% el siguiente. Ver `NOTA_MODALIDAD`.
+     356,200 a 184,576 de nuevo ingreso nacional entre 2022-2023 y 2023-2024
+     (-48.2%) mientras NO ESCOLARIZADA + MIXTA pasa de 356,200 a 379,985
+     (+6.7%), luego a 432,140 (+13.7%) y a 477,639 (+10.5%). No se fue un solo
+     alumno: MIXTA es el 51.4% del online ese ciclo, 51.3% el siguiente y 47.0%
+     en 2025-2026. Ver `NOTA_MODALIDAD`.
 
 Hasta antes de esto el modulo trataba cualquier serie que arrancara en o
 despues de 2017 como artefacto del catalogo de areas, y a una serie de MIXTA
@@ -72,36 +73,37 @@ AREAS_CON_TRASVASE = {
 }
 
 NOTA_AREA = (
-    "Estas dos áreas no son comparables por separado a lo largo de los 11 ciclos: "
+    "Estas dos áreas no son comparables por separado a lo largo de toda la serie: "
     "en 2017-2018 ANUIES movió las carreras de tecnologías de la información de "
     "**Ingeniería** a **Ciencias naturales, exactas y de la computación**. Por eso "
-    "computación salta +66% y ingeniería cae -19% justo en ese ciclo, sin que "
+    "computación salta +80% y ingeniería cae -18% justo en ese ciclo, sin que "
     "cambiara la matrícula real. Seleccionando **las dos áreas juntas** la serie sí "
-    "es comparable (-3.2% en ese mismo cruce)."
+    "es comparable (-2.0% en ese mismo cruce)."
 )
 
 # --------------------------------------------------------------- modalidad
 # El equivalente exacto de AREAS_CON_TRASVASE, un ciclo distinto y otra columna:
-# estas dos modalidades por separado no son comparables en los 11 ciclos, y
+# estas dos modalidades por separado no son comparables en toda la serie, y
 # sumadas si. Vive aqui y no en comun.py porque es un hecho de la fuente, no una
 # preferencia de la interfaz, y porque asi lo pueden importar los scripts de
 # validacion sin arrastrar streamlit.
 MODALIDADES_ONLINE = ["NO ESCOLARIZADA", "MIXTA"]
 
 # Modalidades que solo existen desde CICLO_MODALIDAD. Cualquier serie suya tiene
-# 2 ciclos, no 11, y eso no es un hueco de mercado.
+# pocos ciclos, no la serie completa, y eso no es un hueco de mercado.
 MODALIDADES_NUEVAS = {"MIXTA", "DUAL"}
 
 NOTA_MODALIDAD = (
-    "**NO ESCOLARIZADA sola no es comparable a lo largo de los 11 ciclos.** En el "
+    "**NO ESCOLARIZADA sola no es comparable a lo largo de toda la serie.** En el "
     "ciclo 2023-2024 ANUIES empezó a reportar **MIXTA** como modalidad propia y esa "
     "matrícula salió casi toda de aquí: nacionalmente NO ESCOLARIZADA pasa de "
-    "437,882 a 261,678 de nuevo ingreso (**-40.2%**) sin que se fuera un solo "
-    "alumno, y al ciclo siguiente rebota +13.5%. Ese -40% es reclasificación, no "
+    "356,200 a 184,576 de nuevo ingreso (**-48.2%**) sin que se fuera un solo "
+    "alumno, y al ciclo siguiente rebota +13.9%. Ese -48% es reclasificación, no "
     "mercado, y una proyección montada sobre él arrastra el escalón. "
     "**Marca también MIXTA** —o elige la opción *Online (no escolarizada + "
-    "mixta)*, que es exactamente esa suma—: 437,882 → 475,083 → 540,301, es decir "
-    "+8.5% y +13.7%, que sí es la serie de modalidad comparable en los 11 ciclos."
+    "mixta)*, que es exactamente esa suma—: 356,200 → 379,985 → 432,140 → 477,639, "
+    "es decir +6.7%, +13.7% y +10.5%, que sí es la serie de modalidad comparable "
+    "en toda la serie."
 )
 
 # Textos del detector de quiebres, uno por ciclo. Separados de la logica porque
@@ -120,7 +122,7 @@ QUIEBRES = {
         "cruce": "2022-2023 y 2023-2024",
         "alto": ("Ese es el ciclo en que ANUIES empezó a reportar MIXTA (y DUAL) "
                  "por separado, y esa matrícula salió casi toda de NO ESCOLARIZADA: "
-                 "nacionalmente la serie de NO ESCOLARIZADA sola cae -40.2% ahí sin "
+                 "nacionalmente la serie de NO ESCOLARIZADA sola cae -48.2% ahí sin "
                  "perder un alumno. Si este corte incluye NO ESCOLARIZADA sin "
                  "MIXTA, el salto es reclasificación: súmalas. Si no la incluye, "
                  "revisa la serie antes de proyectarla."),
@@ -162,7 +164,7 @@ def recortar(serie):
     if arranca_tarde and ini == CICLO_MODALIDAD:
         aviso = (f"Esta modalidad no existía como categoría propia antes de "
                  f"{CICLO_MODALIDAD}-{CICLO_MODALIDAD + 1}: la serie arranca ahí y "
-                 f"son {len(recortada)} ciclos, no 11. No es un cambio del catálogo "
+                 f"son {len(recortada)} ciclos, no {len(serie)}. No es un cambio del catálogo "
                  f"de áreas, es que ANUIES empezó a desglosar **MIXTA** y **DUAL** "
                  f"ese ciclo; antes esa matrícula venía dentro de otra modalidad "
                  f"—la de MIXTA, dentro de NO ESCOLARIZADA—. Los "
@@ -170,7 +172,7 @@ def recortar(serie):
     elif arranca_tarde and ini == CICLO_CAMBIO:
         aviso = (f"Esta categoría solo existe en el catálogo ANUIES vigente desde "
                  f"{CICLO_CAMBIO}-{CICLO_CAMBIO + 1}: la serie arranca ahí y son "
-                 f"{len(recortada)} ciclos, no 11. Los {perdidos} ciclos anteriores "
+                 f"{len(recortada)} ciclos, no {len(serie)}. Los {perdidos} ciclos anteriores "
                  f"no son ceros, es que la categoría no existía — bajo el catálogo "
                  f"anterior esa matrícula estaba repartida en otras categorías.")
     elif termina_antes and fin == CICLO_CAMBIO - 1:
@@ -289,7 +291,7 @@ def padre_de_modalidades(modalidades):
         documentado en la fuente y no se va a inventar, asi que el padre honesto
         es el agregado que con seguridad la contiene.
       * Cualquier seleccion que incluya ESCOLARIZADA o NO ESCOLARIZADA no tiene
-        padre: esas series ya cubren los 11 ciclos por si mismas.
+        padre: esas series ya cubren todos los ciclos por si mismas.
     """
     sel = set(map(str, modalidades or []))
     if not sel or not sel <= MODALIDADES_NUEVAS:
