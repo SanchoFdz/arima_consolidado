@@ -35,7 +35,8 @@ Tres fuentes de evidencia:
     maquillan.
 
 Salida: datos/concordancia_areas.parquet
-Uso:    python concordancia.py
+Uso:    python concordancia.py               (grupos congelados, metricas al dia)
+        python concordancia.py --reestimar   (reestima y reemplaza la particion)
 API:    grupos_de(panel) agrega el panel por grupo comparable.
 """
 from __future__ import annotations
@@ -50,6 +51,9 @@ RAIZ = Path(__file__).resolve().parent
 FUENTE = RAIZ.parent / "data" / "Anuies_agregado_2014_2026.xlsx"
 CACHE = RAIZ / "datos" / "flujo_reclasificacion.parquet"
 SALIDA = RAIZ / "datos" / "concordancia_areas.parquet"
+# Particion vigente, congelada. `construir` la usa en vez de reestimar; solo
+# `python concordancia.py --reestimar` la reemplaza. Ver `grupos_congelados`.
+GRUPOS = RAIZ / "datos" / "grupos_comparables.parquet"
 
 # Ventana de estimacion, fija aunque la fuente traiga ciclos posteriores. El flujo
 # compara lo que desaparece hasta 2016 contra lo que aparece "despues": cada ciclo
@@ -213,14 +217,52 @@ def continuidad(serie):
 # --------------------------------------------------------------------------- #
 # 3. Construccion de los grupos comparables
 # --------------------------------------------------------------------------- #
-def construir(recalcular=False):
+def grupos_congelados():
+    """(grupos, evidencia, nombres) de la particion congelada, o None si no hay.
+
+    La reestimacion es codiciosa y no es estable ante cambios chicos de datos:
+    sumar Chiapas (2.3% del NI) movia 14 de los 68 grupos y subia los fragiles
+    de 14 a 20, mientras la particion anterior seguia pasando completa la prueba
+    de continuidad con Chiapas adentro (13 fragiles). La correspondencia entre
+    catalogos es un hecho de los catalogos, no de que estado entra en la base, y
+    un grupo que cambia de composicion en cada actualizacion deja de ser la
+    misma serie para quien ya lo uso. Por eso se congela: cada corrida recalcula
+    metricas y la prueba de continuidad sobre los datos vigentes, pero no la
+    particion ni los nombres.
+    """
+    if not GRUPOS.exists():
+        return None
+    g = pd.read_parquet(GRUPOS)
+    G = [list(x["Area_especifica"]) for _, x in g.groupby("grupo", sort=True)]
+    evidencia = dict(zip(g["Area_especifica"], g["evidencia"]))
+    nombres = {frozenset(x["Area_especifica"]): n for n, x in g.groupby("grupo")}
+    return G, evidencia, nombres
+
+
+_NOMBRES_FIJOS = {}
+
+
+def construir(recalcular=False, reestimar=False):
     """Devuelve (grupos, series, catalogo, flujo, evidencia).
+
+    Sin `reestimar`, los grupos y la evidencia salen de la particion congelada
+    (`grupos_congelados`) si existe; series, catalogo y flujo siempre se leen de
+    los datos vigentes.
 
     grupos: lista de listas de areas especificas.
     evidencia: dict area_especifica -> 'nombre' | 'flujo' | 'continuidad' | 'aislada'
     """
     f = flujo(recalcular)
     cat, ser = _auxiliares(recalcular)
+    fijos = None if reestimar else grupos_congelados()
+    if fijos is not None:
+        G, evidencia, nombres = fijos
+        faltan = set(ser.index) - {x for g in G for x in g}
+        assert not faltan, f"areas sin grupo congelado, corre --reestimar: {sorted(faltan)}"
+        _NOMBRES_FIJOS.clear()
+        _NOMBRES_FIJOS.update(nombres)
+        return G, ser, cat, f, evidencia
+    _NOMBRES_FIJOS.clear()
     AE = list(ser.index)
     pos = {a: i for i, a in enumerate(AE)}
     S = ser[ANIOS].values.astype(float)
@@ -405,6 +447,8 @@ def construir(recalcular=False):
 
 def nombrar(grupo, ser):
     """Nombre del grupo en vocabulario del catalogo nuevo (el vigente)."""
+    if frozenset(grupo) in _NOMBRES_FIJOS:
+        return _NOMBRES_FIJOS[frozenset(grupo)]
     nuevas = [x for x in grupo if ser.loc[x, "era"] in ("nuevo", "ambos")]
     pool = nuevas or grupo
     cabeza = max(pool, key=lambda x: ser.loc[x, ANIOS[len(ANIOS) - 1]])
@@ -437,9 +481,9 @@ def tabla_validacion(G, ser):
     return pd.DataFrame(filas)
 
 
-def concordancia(recalcular=False):
+def concordancia(recalcular=False, reestimar=False):
     """Tabla larga: una fila por triple del catalogo, con su grupo comparable."""
-    G, ser, cat, f, evidencia = construir(recalcular)
+    G, ser, cat, f, evidencia = construir(recalcular, reestimar)
     grupo_de = {x: nombrar(g, ser) for g in G for x in g}
     estado = {}
     for g in G:
@@ -479,11 +523,17 @@ def grupos_de(panel, conc=None, dims=None, metricas=("Matricula", "NI", "Egresad
 
 
 def main():
-    G, ser, cat, f, evidencia = construir()
+    import sys
+    reestimar = "--reestimar" in sys.argv
+    G, ser, cat, f, evidencia = construir(reestimar=reestimar)
     tab = tabla_validacion(G, ser)
-    conc = concordancia()
+    conc = concordancia(reestimar=reestimar)
     SALIDA.parent.mkdir(parents=True, exist_ok=True)
     conc.to_parquet(SALIDA, index=False)
+    if reestimar or not GRUPOS.exists():
+        (conc.drop_duplicates("Area_especifica")[["Area_especifica", "grupo", "evidencia"]]
+             .to_parquet(GRUPOS, index=False))
+        print(f"particion {'reestimada' if reestimar else 'inicial'} congelada en {GRUPOS}")
 
     pd.set_option("display.width", 200)
     pd.set_option("display.max_rows", 300)

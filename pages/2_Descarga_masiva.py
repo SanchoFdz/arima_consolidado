@@ -158,7 +158,7 @@ if "Modalidad" in dims and not es_ems:
         "**Desagregar por modalidad no da cuatro series comparables entre si.** "
         "MIXTA y DUAL existen desde 2023-2024 y son 2 ciclos: no llegan al minimo "
         f"de {pr.MIN_OBS} para proyectar, asi que no van a aparecer en el Excel. Y "
-        "NO ESCOLARIZADA sola si aparece, pero su caida de -48.2% en 2023-2024 es "
+        "NO ESCOLARIZADA sola si aparece, pero su caida de -49.5% en 2023-2024 es "
         "el desglose de MIXTA, no mercado (viene marcada en la columna `avisos`). "
         "Para la serie de online comparable, quita Modalidad de la desagregacion y "
         "ponla como filtro fijo con la opcion *Online (no escolarizada + mixta)*.")

@@ -11,10 +11,10 @@ Son dos, y conviene no confundirlos porque piden avisos distintos:
      (y DUAL) como modalidades propias. Es un problema de modalidad, no de
      areas: no se reclasifico ninguna carrera, se partio en dos una columna que
      antes venia junta. Verificado sobre el panel: NO ESCOLARIZADA sola pasa de
-     356,200 a 184,576 de nuevo ingreso nacional entre 2022-2023 y 2023-2024
-     (-48.2%) mientras NO ESCOLARIZADA + MIXTA pasa de 356,200 a 379,985
-     (+6.7%), luego a 432,140 (+13.7%) y a 477,639 (+10.5%). No se fue un solo
-     alumno: MIXTA es el 51.4% del online ese ciclo, 51.3% el siguiente y 47.0%
+     372,595 a 188,115 de nuevo ingreso nacional entre 2022-2023 y 2023-2024
+     (-49.5%) mientras NO ESCOLARIZADA + MIXTA pasa de 372,595 a 395,218
+     (+6.1%), luego a 445,530 (+12.7%) y a 491,121 (+10.2%). No se fue un solo
+     alumno: MIXTA es el 52.4% del online ese ciclo, 52.0% el siguiente y 47.7%
      en 2025-2026. Ver `NOTA_MODALIDAD`.
 
 Hasta antes de esto el modulo trataba cualquier serie que arrancara en o
@@ -78,7 +78,7 @@ NOTA_AREA = (
     "**Ingeniería** a **Ciencias naturales, exactas y de la computación**. Por eso "
     "computación salta +80% y ingeniería cae -18% justo en ese ciclo, sin que "
     "cambiara la matrícula real. Seleccionando **las dos áreas juntas** la serie sí "
-    "es comparable (-2.0% en ese mismo cruce)."
+    "es comparable (-1.7% en ese mismo cruce)."
 )
 
 # --------------------------------------------------------------- modalidad
@@ -97,12 +97,12 @@ NOTA_MODALIDAD = (
     "**NO ESCOLARIZADA sola no es comparable a lo largo de toda la serie.** En el "
     "ciclo 2023-2024 ANUIES empezó a reportar **MIXTA** como modalidad propia y esa "
     "matrícula salió casi toda de aquí: nacionalmente NO ESCOLARIZADA pasa de "
-    "356,200 a 184,576 de nuevo ingreso (**-48.2%**) sin que se fuera un solo "
-    "alumno, y al ciclo siguiente rebota +13.9%. Ese -48% es reclasificación, no "
+    "372,595 a 188,115 de nuevo ingreso (**-49.5%**) sin que se fuera un solo "
+    "alumno, y al ciclo siguiente rebota +13.7%. Ese -50% es reclasificación, no "
     "mercado, y una proyección montada sobre él arrastra el escalón. "
     "**Marca también MIXTA** —o elige la opción *Online (no escolarizada + "
-    "mixta)*, que es exactamente esa suma—: 356,200 → 379,985 → 432,140 → 477,639, "
-    "es decir +6.7%, +13.7% y +10.5%, que sí es la serie de modalidad comparable "
+    "mixta)*, que es exactamente esa suma—: 372,595 → 395,218 → 445,530 → 491,121, "
+    "es decir +6.1%, +12.7% y +10.2%, que sí es la serie de modalidad comparable "
     "en toda la serie."
 )
 
@@ -122,7 +122,7 @@ QUIEBRES = {
         "cruce": "2022-2023 y 2023-2024",
         "alto": ("Ese es el ciclo en que ANUIES empezó a reportar MIXTA (y DUAL) "
                  "por separado, y esa matrícula salió casi toda de NO ESCOLARIZADA: "
-                 "nacionalmente la serie de NO ESCOLARIZADA sola cae -48.2% ahí sin "
+                 "nacionalmente la serie de NO ESCOLARIZADA sola cae -49.5% ahí sin "
                  "perder un alumno. Si este corte incluye NO ESCOLARIZADA sin "
                  "MIXTA, el salto es reclasificación: súmalas. Si no la incluye, "
                  "revisa la serie antes de proyectarla."),

@@ -390,7 +390,7 @@ def cta_sin_proyeccion(mods_base, mods_padre, etiqueta_padre, n_ciclos):
                 f"filtro de Modalidad —o marca NO ESCOLARIZADA y MIXTA, que es lo "
                 f"mismo—. {falta}, porque ANUIES desglosó MIXTA hasta 2023-2024. "
                 f"Online sí tiene la serie completa y es la única serie de modalidad "
-                f"comparable: 356,200 → 379,985 → 432,140 → 477,639 a nivel nacional.")
+                f"comparable: 372,595 → 395,218 → 445,530 → 491,121 a nivel nacional.")
     if mods_padre is None and etiqueta_padre:
         return (f"**Para proyectar, quita el filtro de Modalidad** y trabaja sobre "
                 f"{etiqueta_padre.lower()}. {falta}: esta modalidad se reporta por "
@@ -764,7 +764,7 @@ segmento = " · ".join(([comun.MEDIA_SUPERIOR] if es_ems else []) + [etiqueta_ge
 nombre_archivo = ("EMS_" if es_ems else "") + etiqueta_geo[:30].replace(" ", "_")
 
 # Aviso de seleccion, no de datos: NO ESCOLARIZADA sin MIXTA no es comparable en
-# toda la serie aunque se vea perfectamente proyectable, porque el -48%
+# toda la serie aunque se vea perfectamente proyectable, porque el -50%
 # de 2023-2024 es el desglose de MIXTA. Gemelo de `nota_trasvase` para las areas.
 if es_ems:
     nota_mod = (comun.NOTA_NO_ESCOLARIZADA_EMS
@@ -808,7 +808,7 @@ for severidad, texto in ([] if es_ems else tax.quiebres(serie)):
 st.plotly_chart(grafica(res, segmento, metrica_nombre, confianza), use_container_width=True)
 
 # Sin contexto en media superior: los universos de drivers.py salen del
-# crosswalk ANUIES (sin Chiapas, solo municipios con superior) y la cohorte
+# crosswalk ANUIES (solo municipios con educacion superior) y la cohorte
 # que importa para bachillerato es 15-17, no 12-29. Mejor nada que una tasa
 # de captacion con el denominador equivocado.
 contexto = None if es_ems else contexto_externo(

@@ -28,15 +28,15 @@ python rezago.py           # reestima la elasticidad transversal del rezago
 Apuntar a este repo, rama `main`, archivo principal `app.py`. No necesita
 secretos ni variables de entorno. El tema claro viene en `.streamlit/config.toml`.
 
-## Datos: 2025-2026 y la corrección de CDMX (24 sep 2026)
+## Datos: 2025-2026, la corrección de CDMX y Chiapas (24 sep 2026)
 
 **La Ciudad de México venía duplicada en la fuente.** En
 `Anuies_agregado_2014_2025.xlsx` cada una de las 11,932 filas de CDMX aparecía
 exactamente dos veces, con todas las dimensiones y los valores idénticos (solo
 cambiaba el índice de la fila original). Fuera de CDMX no había duplicados. Todo
 lo que esta app mostró hasta el 23 de septiembre traía CDMX al doble: el NI
-nacional 2024-2025 salía en 1,670,298 cuando es **1,442,184** (+15.8% de
-inflación), y la ZM Ciudad de México, la región Valle y cualquier corte que
+nacional 2024-2025 (sin Chiapas) salía en 1,670,298 cuando es **1,442,184** (+15.8%
+de inflación), y la ZM Ciudad de México, la región Valle y cualquier corte que
 tocara CDMX estaban igual de inflados. Esto quedó corregido en la fuente misma:
 `../data/Anuies_agregado_2014_2025.xlsx` ya viene deduplicado (el original quedó
 como `Anuies_agregado_2014_2025_ORIGINAL_CDMX_x2.xlsx`). La corrección se
@@ -58,23 +58,35 @@ agregado corregido más una columna por métrica para 2025-2026. Cómo se integr
   escuela y sede, así que eso no mueve ninguna serie de la app.
 - `CENTROS DE INVESTIGACIÓN SECIHTI` se homologa a `CONACYT`, su nombre en el
   histórico.
-- **Chiapas se deja fuera**: el anuario 2025-2026 sí lo trae (36,837 de NI,
-  2.3% del nacional), pero ningún ciclo anterior del agregado lo tiene, y
-  meterlo solo en el último año pondría un escalón de +2.3% en toda serie
-  nacional o del Sureste. Para incluirlo hay que reconstruir su historia desde
-  el 911.
 
-Nacional corregido: NI 1,442,184 → **1,561,343 (+8.3%)**, matrícula 5,396,176 →
-5,634,628 (+4.4%). El salto de CDMX (+23.9%) es real y tiene nombre: la
+**Chiapas entra con toda su historia.** El agregado original no lo traía en
+ningún ciclo. Ahora viene de `CHIAPAS_historico_anuario_2014-2015_a_2025-2026.xlsx`
+(exportación "Histórico" de ANUIES), con los 12 ciclos y la misma jerarquía que
+el agregado: la sangría de cada celda marca el nivel (estado, municipio, tipo,
+institución, sede, nivel, modalidad, área, subárea, área específica). Se toma el
+bloque de las cuatro métricas por ciclo. Controles: las 5,653 hojas suman
+exacto al total del estado en las 48 columnas, y cada nivel intermedio también;
+el 2025-2026 coincide llave por llave con el anuario 2025-2026 (salvo 31
+nombres de institución que difieren solo en acentos, con el mismo total); MIXTA
+aparece recién en 2023-2024, igual que en el resto del país; y el catálogo de
+áreas es el mismo. Va a la región Sureste / Área VI, con Oaxaca y Tabasco. Los
+dos agregados de `../data/` (2014_2025 y 2014_2026) ya lo incluyen, así que
+cualquier total "nacional" es de los 32 estados.
+
+Nacional: NI 1,475,911 → **1,598,180 (+8.3%)**, matrícula 5,519,791 → 5,760,478
+(+4.4%). Chiapas aporta 34,622 de NI en 2014-2015 y 36,837 en 2025-2026.
+
+El salto de CDMX (+23.9%) es real y tiene nombre: la
 Universidad Rosario Castellanos (+38k, casi todo no escolarizado), UNIR (+8k)
 y la UnADM (+5k). En la dirección contraria, UVM no escolarizada en CDMX cae de
 14,738 a 5,643.
 
-**Lo que se remidió con los datos corregidos**, y está actualizado abajo:
-concordancia, competencia de métodos, calibración, backtest de externos,
+**Lo que se remidió con los datos corregidos** (CDMX deduplicado, 2025-2026 y
+Chiapas), y está actualizado abajo: concordancia, competencia de métodos,
+calibración, backtest de externos,
 backtest de COVID, cifras del quiebre de modalidad, sostenimiento y la
 derivada de MIXTA. **Lo que no se remidió** y sigue con las cifras de la versión
-con CDMX duplicado: la validación cruzada de la concordancia (correlación
+con CDMX duplicado y sin Chiapas: la validación cruzada de la concordancia (correlación
 0.951, 43 de 48 destinos modales, 63% de cobertura), las coberturas de series
 ZM × corte (597 de 786) y los ejemplos de flujo (50.7% de Desarrollo de software
 desde Electrónica). No hay un script que las regenere; eran medición puntual.
@@ -126,14 +138,14 @@ conveniencia, es la única serie de modalidad comparable en todos los ciclos.
 
 **Sostenimiento (particular / público) se deriva del tipo de institución.**
 ANUIES no publica sostenimiento: de los 12 valores de `Tipo_inst`, solo
-PARTICULAR es privado. Nacional 2025-2026: 647,487 de NI particular y 913,856
+PARTICULAR es privado. Nacional 2025-2026: 663,050 de NI particular y 935,130
 público. En media superior sale directo de `CONTROL` del 911.
 
 **Media superior es otro panel, no otro nivel del mismo.** Viene del formato
 911 de la SEP (`preparar_ems.py`), no de ANUIES, y se elige con el selector
 *Datos*. No tiene disciplina ni la taxonomía de quiebres de ANUIES, y tampoco
 el bloque de contexto demográfico: `drivers.py` arma sus universos con el
-crosswalk ANUIES (sin Chiapas, solo los 829 municipios con superior) y la
+crosswalk ANUIES (solo los ~900 municipios con educación superior) y la
 cohorte de bachillerato es 15-17, no 12-29. Tres homologaciones, todas medidas:
 
 - *NI es primer ingreso a 1er grado* (`MS130`/`MS149` → `V346`/`V414` →
@@ -187,10 +199,24 @@ Formación docente en asignaturas específicas y Servicios de transporte) fallan
 la prueba de continuidad con los datos corregidos. La versión nueva queda en
 68 y conserva los grupos que se leían bien antes.
 
+**La partición está congelada** en `datos/grupos_comparables.parquet` (área
+específica → grupo, nombre y evidencia). `python concordancia.py` reutiliza esos
+grupos y solo recalcula sus métricas y la prueba de continuidad con los datos
+vigentes; `python concordancia.py --reestimar` es la única forma de cambiarla.
+La razón es medida: la reestimación es codiciosa y no es estable ante cambios
+chicos de datos. Sumar Chiapas (2.3% del NI) movía 14 de los 68 grupos y subía
+los frágiles de 14 a 20, y devolvía la pareja Seguridad industrial + Formación
+docente superior. La partición anterior, en cambio, sigue pasando completa la
+prueba de continuidad con Chiapas adentro, y con menos frágiles (13). La
+correspondencia entre catálogos es un hecho de los catálogos, no de qué estado
+entra en la base, y un grupo que cambia de composición en cada actualización
+deja de ser la misma serie para quien ya lo usó. Si una reestimación futura se
+propone, la comparación es contra este archivo.
+
 Los 68 grupos pasan, cubren las 171 áreas específicas y el 100% del NI, y no
 quedaron categorías huérfanas. El **campo de conocimiento** se reconstruye
-sumando grupos, y eso arregla de paso el nivel área: computación queda en +0.3%
-e ingeniería en +0.7% en ese cruce.
+sumando grupos, y eso arregla de paso el nivel área: computación queda en +0.4%
+e ingeniería en +1.0% en ese cruce.
 
 | | catálogo crudo | grupos comparables |
 |---|---|---|
@@ -233,10 +259,10 @@ más grande, 145 mil de NI al año— se abre hacia **gastronomía, hospitalidad
 turismo**, categorías que el catálogo anterior no tenía. Los dos métodos de
 emparejamiento lo detectan por separado.
 
-**Lo que sigue débil, dicho aquí y en pantalla.** 14 grupos pasan el criterio con
+**Lo que sigue débil, dicho aquí y en pantalla.** 13 grupos pasan el criterio con
 un salto mayor a 1.5× su volatilidad: lo pasan porque su serie es tan ruidosa que
 el criterio no tiene poder para rechazarlos. Los peores son `SEGURIDAD
-PÚBLICA` (-36.2%) y `SERVICIOS MILITARES` (+42.2%), que no son comparables en
+PÚBLICA` (-36.8%) y `SERVICIOS MILITARES` (+42.2%), que no son comparables en
 ningún sentido útil. `SERVICIOS DE TRANSPORTE`, que antes era el peor (-50.5%),
 ya no está solo: con los datos corregidos quedó dentro de Negocios y comercio. La app aplica el mismo criterio a la serie del corte que
 tienes en pantalla —que puede ser un grupo cruzado con una zona chica, donde la
@@ -258,11 +284,11 @@ ESCOLARIZADA. Nuevo ingreso nacional:
 
 | | 2022-2023 | 2023-2024 | 2024-2025 | 2025-2026 | var 23 | var 24 | var 25 |
 |---|---|---|---|---|---|---|---|
-| NO ESCOLARIZADA sola | 356,200 | 184,576 | 210,255 | 252,951 | **-48.2%** | +13.9% | +20.3% |
-| **Online** (no esc. + mixta) | 356,200 | 379,985 | 432,140 | 477,639 | **+6.7%** | +13.7% | +10.5% |
+| NO ESCOLARIZADA sola | 372,595 | 188,115 | 213,870 | 256,758 | **-49.5%** | +13.7% | +20.1% |
+| **Online** (no esc. + mixta) | 372,595 | 395,218 | 445,530 | 491,121 | **+6.1%** | +12.7% | +10.2% |
 
-El -48.2% no perdió un solo alumno. MIXTA es el **51.4%** del online en 2023-2024,
-el **51.3%** en 2024-2025 y el **47.0%** en 2025-2026, y la suma de las dos es
+El -49.5% no perdió un solo alumno. MIXTA es el **52.4%** del online en 2023-2024,
+el **52.0%** en 2024-2025 y el **47.7%** en 2025-2026, y la suma de las dos es
 continua. Por eso el
 agregador volvió al selector: con multiselect *sí* se arma marcando dos casillas,
 pero esconder detrás de "marca estas dos y no estas otras" la **única serie de
@@ -279,7 +305,7 @@ La app avisa en tres lugares (`taxonomia.py`):
   los **dos** cruces conocidos, 2016→2017 y 2022→2023, con la misma prueba
   (el salto contra la mediana de los demás cruces). Antes sólo miraba el primero,
   así que un corte de NO ESCOLARIZADA se proyectaba sobre el escalón sin decir
-  nada; hoy el nacional sale marcado "alto" (baja 48% contra un cambio típico de
+  nada; hoy el nacional sale marcado "alto" (baja 50% contra un cambio típico de
   12%). Es red de seguridad para cruces finos, donde la nota de selección no
   alcanza.
 - **Al recortar la serie de MIXTA o DUAL.** El recorte ya existía; el mensaje
@@ -329,12 +355,12 @@ Qué pasa cada nivel con MIXTA, que es para lo que se diseñó el umbral:
 
 | Corte | Share 2023-24 → 2024-25 → 2025-26 | Dispersión | Volumen | Resultado |
 |---|---|---|---|---|
-| Nacional | 51.4% → 51.3% → 47.0% | 8.8% | 224,688 | **deriva** |
-| Licenciatura | 56.3% → 57.0% → 52.3% | 8.5% | 191,467 | **deriva** |
-| Maestría | 28.1% → 27.9% → 27.2% | 3.4% | 22,576 | **deriva** |
-| Técnico Superior | 53.6% → 56.2% → **75.0%** | 35% | 1,787 | rechaza (share) |
-| Doctorado | 49.0% → 37.5% → **31.3%** | 45% | 5,422 | rechaza (share) |
-| Especialidad | 67.3% → 47.5% → **38.3%** | 57% | 3,436 | rechaza (share) |
+| Nacional | 52.4% → 52.0% → 47.7% | 9.2% | 234,363 | **deriva** |
+| Licenciatura | 57.1% → 57.6% → 52.8% | 8.5% | 197,786 | **deriva** |
+| Maestría | 30.4% → 29.2% → 28.5% | 6.6% | 24,592 | **deriva** |
+| Técnico Superior | 53.6% → 48.3% → **72.8%** | 42% | 1,787 | rechaza (share) |
+| Doctorado | 51.6% → 39.8% → **33.6%** | 43% | 6,098 | rechaza (share) |
+| Especialidad | 69.0% → 49.8% → **42.3%** | 50% | 4,100 | rechaza (share) |
 
 Con el tercer ciclo el share de MIXTA bajó unos 4 puntos en nacional y
 licenciatura: la dispersión subió de ~1% a ~9%, todavía dentro del 15%. Si en
@@ -358,27 +384,26 @@ página **Glosario**, junto con los estados de cada región Nielsen.
 **Regiones Nielsen.** Seis regiones (Valle, Centro, Norte, Sureste, Oeste,
 Pacífico), una por área Nielsen, agrupando estados completos: ningún estado se
 parte entre dos regiones. Vienen asignadas en la fuente ANUIES agregada, no se
-calculan aquí. Cubren los 31 estados que la base trae — **Chiapas no aparece en
-el agregado**, así que cualquier total llamado "nacional" lo excluye. El anuario
-2025-2026 sí lo trae, pero se deja fuera por consistencia (ver arriba).
+calculan aquí, salvo Chiapas, que el agregado original no traía y se asigna a
+Sureste / Área VI con sus vecinos. Cubren los 32 estados.
 
 **El motor no es ARIMA, y eso está medido.** El proyecto empezó como un ARIMA.
-Un backtest de origen móvil sobre 110 segmentos reales (15,624 predicciones) lo
+Un backtest de origen móvil sobre 111 segmentos reales (15,768 predicciones) lo
 dejó **por debajo del naive**:
 
 | Método | MASE | MASE a 3 años | Gana su segmento | En el selector |
 |---|---|---|---|---|
-| **ensemble** (mediana de naive, drift, lineal, media móvil 3) | **1.410** | **1.686** | 6 | sí, por defecto |
-| theta | 1.431 | 1.692 | 14 | no — benchmark |
-| holt amortiguado | 1.522 | 1.845 | 7 | no — benchmark |
-| naive | 1.560 | 1.946 | 1 | sí |
-| **arima** | **1.579** | 1.995 | 5 | sí |
-| lineal | 1.585 | 1.947 | 34 | sí |
+| **ensemble** (mediana de naive, drift, lineal, media móvil 3) | **1.407** | **1.684** | 6 | sí, por defecto |
+| theta | 1.426 | 1.692 | 17 | no — benchmark |
+| holt amortiguado | 1.533 | 1.868 | 8 | no — benchmark |
+| naive | 1.555 | 1.940 | 1 | sí |
+| **arima** | **1.575** | 1.996 | 6 | sí |
+| lineal | 1.584 | 1.953 | 32 | sí |
 
 Con CDMX corregido y 12 ciclos todos los MASE suben (el ciclo 2025-2026, con su
-+8.3% nacional, es el más difícil de predecir de la serie: 1.88 para el
++8.3% nacional, es el más difícil de predecir de la serie: 1.86 para el
 ensemble, contra 1.24-1.30 en 2022-2024), pero el orden de arriba no cambia.
-Theta ya no gana a 3 años: queda empatado con el ensemble (1.692 contra 1.686).
+Theta ya no gana a 3 años: queda empatado con el ensemble (1.692 contra 1.684).
 
 La razón: con 11-12 observaciones anuales no hay estructura que identificar. El
 83% de los segmentos elegía ARIMA(0,1,0) (medido con 11 ciclos) — que es literalmente "último valor" o
@@ -400,8 +425,8 @@ La distinción no es de calidad de implementación, es de para qué sirve cada u
   método con el que arrancó el proyecto y el que cualquiera va a preguntar por
   qué no se usa — poder reproducir en pantalla que queda por debajo del naive
   vale más que ahorrarse una opción.
-- **Benchmarks, no opciones.** Theta y Holt amortiguado quedan en 1.431 y 1.522
-  contra 1.410 del ensemble: ninguno de los dos mejora la elección por defecto, y
+- **Benchmarks, no opciones.** Theta y Holt amortiguado quedan en 1.426 y 1.533
+  contra 1.407 del ensemble: ninguno de los dos mejora la elección por defecto, y
   el primero es un empate estadístico. Ofrecerlos invitaba a cambiar de motor por
   ruido, y una cifra reportada con Theta en vez del ensemble no es más precisa,
   solo es distinta. Pero son justo los dos rivales que hacen que *"el ensemble
@@ -420,17 +445,17 @@ seguir pidiendo `"Theta"` por nombre. `validacion.py` corre con sus doce método
 la siguiente corrida.
 
 **El hoyo de COVID es real y marcarlo no sirve — también medido.** Nacionalmente
-el nuevo ingreso cae -8.1% en 2020-2021, el único ciclo negativo de la serie.
+el nuevo ingreso cae -8.4% en 2020-2021, el único ciclo negativo de la serie.
 Contra la interpolación de sus vecinos sanos (2019 y 2022), el desvío mediano de
-los 108 segmentos es **-9.2%** y el 84% queda por debajo de su propia línea. No
+los 109 segmentos es **-9.4%** y el 84% queda por debajo de su propia línea. No
 es un artefacto de un corte: es el ciclo anómalo de la base.
 
 | Ciclo | Desvío mediano vs. vecinos | Segmentos por debajo |
 |---|---|---|
-| 2017-2018 | -3.2% | 74% |
-| **2020-2021** | **-9.2%** | **84%** |
-| 2021-2022 | -4.1% | 72% |
-| resto | entre -0.5% y +5.7% | 12-55% |
+| 2017-2018 | -3.1% | 73% |
+| **2020-2021** | **-9.4%** | **84%** |
+| 2021-2022 | -3.7% | 72% |
+| resto | entre -0.5% y +5.9% | 14-56% |
 
 Dos cosas que conviene leer de esa tabla. La primera: 2021-2022 ya es
 recuperación parcial —la mitad del hoyo, y un tercio de los segmentos ya está
@@ -439,7 +464,7 @@ es tratar la recuperación como si fuera la caída. La segunda: el -3.2% de 2017
 el cambio de catálogo, no mercado, y ya lo resuelve `concordancia.py`.
 
 Marcarlo se probó de las dos formas en que se puede marcar, con el mismo
-protocolo de origen móvil sobre los mismos 110 segmentos:
+protocolo de origen móvil sobre los mismos 111 segmentos:
 
 1. **Flag / dummy**, que es la versión literal: `y ~ a + b·t + c·D_covid`,
    proyectando con `D = 0`. Solo aplica a un método que estime coeficientes, así
@@ -455,16 +480,16 @@ realidad que sí tuvo pandemia. Es la comparación que favorece a la corrección
 
 | Método | MASE (uso real) | MASE (todos los orígenes) |
 |---|---|---|
-| ensemble + limpia 2020-21 | 1.448 | 1.931 |
-| ensemble + limpia 2020 | 1.461 | 1.557 |
-| **ensemble (el de la app)** | **1.471** | **1.410** |
-| naive | 1.529 | 1.560 |
-| **lineal + dummy covid** | **1.700** | **1.985** |
-| lineal | 1.726 | 1.585 |
-| lineal + limpia 2020-21 | 1.790 | 2.318 |
+| ensemble + limpia 2020-21 | 1.443 | 1.924 |
+| ensemble + limpia 2020 | 1.459 | 1.558 |
+| **ensemble (el de la app)** | **1.465** | **1.407** |
+| naive | 1.518 | 1.555 |
+| **lineal + dummy covid** | **1.707** | **2.001** |
+| lineal | 1.728 | 1.584 |
+| lineal + limpia 2020-21 | 1.794 | 2.314 |
 
-El dummy pierde por 16% contra el motor actual. Limpiar el outlier queda 1.6%
-abajo en el régimen de uso real, pero le gana al ensemble solo en 45.5% de los
+El dummy pierde por 17% contra el motor actual. Limpiar el outlier queda 1.5%
+abajo en el régimen de uso real, pero le gana al ensemble solo en 45.0% de los
 segmentos (la media la mueven unos pocos), y en todos los orígenes pierde por
 37%. Con los datos corregidos y el ciclo 2025-2026 sigue siendo un empate, ya no
 tan exacto como antes (1.027 contra 1.030, cuando le ganaba en 32%). Vale la
@@ -480,11 +505,11 @@ y encima añade una interpolación inventada al historial.
 **Dónde sí pega el COVID, y ahí se deja a propósito.** El ancho del intervalo es
 proporcional a `mean|diff|` de la serie, y la entrada y la salida del hoyo son
 dos diferencias grandes. Eso infla la escala: la mediana de los segmentos tiene
-el intervalo **5% más ancho** por COVID, el 17% lo tiene más de 25% más ancho.
+el intervalo **6% más ancho** por COVID, el 19% lo tiene más de 25% más ancho.
 No se corrige, y no por pereza: 2020 pasó, y una serie que ya demostró que puede
 moverse 9% en un ciclo por un shock exógeno *merece* un intervalo más ancho. El
-semáforo de confiabilidad, en cambio, no se mueve —MAPE medio 11.82% con los
-objetivos COVID contra 12.00% sin ellos, y los 5 segmentos que cambian de color
+semáforo de confiabilidad, en cambio, no se mueve —MAPE medio 11.96% con los
+objetivos COVID contra 12.15% sin ellos, y los 4 segmentos que cambian de color
 cambian en las dos direcciones—, porque el castigo cae parejo sobre todos.
 
 Reproducible con `python validacion_covid.py`.
@@ -496,9 +521,9 @@ serie. Cobertura medida fuera de muestra (200 splits por segmento):
 
 | Nominal | Real |
 |---|---|
-| 50% | 50.3% |
-| 80% | 79.4% |
-| 95% | 94.5% |
+| 50% | 49.8% |
+| 80% | 79.6% |
+| 95% | 94.6% |
 
 Cada motor tiene sus propios factores, porque cada uno se equivoca distinto. Se
 calibran **los seis**, incluidos Theta y Holt, que no están en el selector: sus
@@ -530,20 +555,20 @@ en una serie de 11 puntos —que no da— se proyecta la **tasa de captación**
 (alumnos del corte por joven de 12 a 29 años) y se reescala por la población
 futura ya publicada. Cero parámetros extra. Se implementó, se midió, y perdió.
 
-Mismo protocolo que la competencia de métodos: origen móvil, 155 segmentos
-geográficos comparables, 11,160 predicciones.
+Mismo protocolo que la competencia de métodos: origen móvil, 158 segmentos
+geográficos comparables, 11,376 predicciones.
 
 | Anclaje | MASE | MASE a 3 años | Le gana a no usarlo |
 |---|---|---|---|
-| población total (CONAPO) | **1.307** | **1.604** | 58.1% de segmentos |
-| **sin anclaje (el motor actual)** | 1.326 | 1.617 | — |
-| población 12-29 (CONAPO) | 1.345 | 1.650 | 50.3% |
-| 12-29 + corrección por rezago | 1.379 | 1.707 | 36.8% |
-| escuelas de superior (SEP) | 1.406 | 1.781 | 50.3% |
-| matrícula de media superior t-1 (SEP) | 1.462 | 1.750 | 25.8% |
+| población total (CONAPO) | **1.298** | **1.590** | 57.0% de segmentos |
+| **sin anclaje (el motor actual)** | 1.316 | 1.598 | — |
+| población 12-29 (CONAPO) | 1.335 | 1.632 | 50.6% |
+| 12-29 + corrección por rezago | 1.368 | 1.689 | 35.4% |
+| escuelas de superior (SEP) | 1.400 | 1.773 | 49.4% |
+| matrícula de media superior t-1 (SEP) | 1.449 | 1.728 | 27.2% |
 
 Nada le gana a no usarlo por un margen que justifique el cambio. El anclaje a
-población total queda 1.4% abajo y le gana a no usarlo en 58% de los segmentos:
+población total queda 1.4% abajo y le gana a no usarlo en 57% de los segmentos:
 con los datos corregidos se acercó (antes era 0.6% y 55.5%), pero sigue siendo
 un empate. Es el candidato a reabrir si el ciclo 2026-2027 lo confirma. La
 selección automática por segmento no la reporta `validacion_externos.py` en su
@@ -637,7 +662,7 @@ con su serie padre y, si el volumen aguanta, la derivada por participación
 | `drivers.py` | Arma la serie de población de cualquier corte, municipalizada |
 | `rezago.py` | IRS: diagnóstico transversal y la corrección que se midió y se descartó |
 | `contexto.py` | La lectura externa que sí se muestra. Documenta por qué no entra al número |
-| `concordancia.py` | Correspondencia entre los dos catálogos ANUIES → 68 grupos comparables |
+| `concordancia.py` | Correspondencia entre los dos catálogos ANUIES → 68 grupos comparables, congelados en `datos/grupos_comparables.parquet` |
 | `taxonomia.py` | Los dos quiebres de la fuente (catálogo 2017, modalidad 2023): recorte, avisos y detección |
 | `validacion_externos.py` | Backtest anclaje contra nada. Genera la tabla de arriba |
 | `validacion_covid.py` | Backtest del flag COVID y de la limpieza del outlier. Genera la tabla de arriba |
@@ -656,7 +681,8 @@ con su serie padre y, si el volumen aguanta, la derivada por participación
 Fuentes:
 
 - `../data/Anuies_agregado_2014_2026.xlsx` — el panel educativo: agregado 2014-2025
-  con CDMX deduplicado + `base_anuario_2025-2026_2026-09-24.xlsx`
+  con CDMX deduplicado + `base_anuario_2025-2026_2026-09-24.xlsx` + Chiapas desde
+  `CHIAPAS_historico_anuario_2014-2015_a_2025-2026.xlsx`
 - `series_historicas/pobproy_ggrupos.csv` — CONAPO, población municipal 1990-2040
 - `series_historicas/serie_historica_entidades_sep (2).xlsm` — SEP, 1990-91 a 2030-31
 - `../data/Indice de Rezago Social/IRS_entidades_mpios_{2000..2020}.xlsx` — CONEVAL

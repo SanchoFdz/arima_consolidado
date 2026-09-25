@@ -28,7 +28,7 @@ Tres decisiones de homologacion, las tres medidas sobre el panel crudo:
 Geografia por clave INEGI, no por nombre. Los nombres salen del crosswalk del
 panel ANUIES cuando el municipio existe ahi (asi Estado/Municipio se escriben
 igual en los dos paneles) y de CONAPO para el resto: EMS llega a ~2,260
-municipios y superior a ~830. Chiapas no esta en el agregado ANUIES; aqui si.
+municipios y superior a ~890. Chiapas esta en los dos desde sep 2026.
 
 Salida: datos/panel_ems.parquet
 """
@@ -62,8 +62,9 @@ MODALIDAD = {"ESCOLARIZADA": "ESCOLARIZADA", "MIXTA": "ESCOLARIZADA",
              "NO ESCOLARIZADA": "NO ESCOLARIZADA"}
 SOSTENIMIENTO = {"PRIVADO": "Particular", "PUBLICO": "Publico"}
 
-# Chiapas no esta en el crosswalk porque no esta en el agregado ANUIES. Nielsen
-# lo pone en Sureste, Area VI, con el resto del sur.
+# Hasta sep 2026 Chiapas no estaba en el agregado ANUIES ni en el crosswalk.
+# Hoy ya viene de ahi; esto queda de respaldo por si el crosswalk llega sin el.
+# Nielsen lo pone en Sureste, Area VI, con el resto del sur.
 NIELSEN_FALTANTE = {"CHIAPAS": ("SURESTE", "Area_VI")}
 
 

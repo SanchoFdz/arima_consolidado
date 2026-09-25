@@ -66,10 +66,10 @@ CORTES = {
 # tener el mismo corte con dos nombres invita a reportar cifras que parecen de
 # universos distintos. El argumento estaba equivocado y los numeros lo dicen:
 #
-#   NO ESCOLARIZADA sola   356,200 -> 184,576 -> 210,255 -> 252,951   -48.2% / +13.9% / +20.3%
-#   NO ESCOLARIZADA+MIXTA  356,200 -> 379,985 -> 432,140 -> 477,639   +6.7% / +13.7% / +10.5%
+#   NO ESCOLARIZADA sola   372,595 -> 188,115 -> 213,870 -> 256,758   -49.5% / +13.7% / +20.1%
+#   NO ESCOLARIZADA+MIXTA  372,595 -> 395,218 -> 445,530 -> 491,121   +6.1% / +12.7% / +10.2%
 #
-# El -48.2% es el desglose de MIXTA en 2023-2024, no mercado (ver taxonomia.py).
+# El -49.5% es el desglose de MIXTA en 2023-2024, no mercado (ver taxonomia.py).
 # O sea que la suma no es un corte mas entre los 15 posibles: es la UNICA serie
 # de modalidad comparable en toda la serie que se puede pedir de este panel, y
 # esconderla detras de "marca estas dos y no estas otras" es esconder el camino
@@ -98,7 +98,7 @@ AYUDA_MODALIDAD = (
     f"**{MODALIDAD_ONLINE}** es un atajo: equivale exactamente a marcar esas dos "
     "casillas, y es la unica serie de modalidad comparable en toda la serie "
     "porque ANUIES empezo a desglosar MIXTA hasta 2023-2024 (NO ESCOLARIZADA "
-    "sola cae -48.2% ese ciclo por reclasificacion, no por mercado)."
+    "sola cae -49.5% ese ciclo por reclasificacion, no por mercado)."
 )
 
 AYUDA_SOSTENIMIENTO = (

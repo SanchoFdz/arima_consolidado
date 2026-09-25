@@ -1,11 +1,11 @@
 {
   "indicador": "basica_incompleta",
-  "elasticidad": -0.01934724318579672,
-  "intercepto": -2.8686870278625496,
-  "error_estandar": 0.003206941913246993,
-  "t": -6.0329259803174455,
-  "r2": 0.05876076754401882,
-  "n_municipios": 585,
+  "elasticidad": -0.02074728230644893,
+  "intercepto": -2.830231886979057,
+  "error_estandar": 0.003028283550618205,
+  "t": -6.85116897399304,
+  "r2": 0.07112558996047702,
+  "n_municipios": 615,
   "anio_indicadores": 2020,
   "ciclos_ni": [
     2023,
@@ -14,25 +14,25 @@
   ],
   "candidatos": {
     "irs": {
-      "pendiente": -0.21540784002176508,
-      "intercepto": -3.6434222191215038,
-      "error_estandar": 0.05054679948866431,
-      "t": -4.2615525058134045,
-      "r2": 0.030209602590143714
+      "pendiente": -0.24198924519393575,
+      "intercepto": -3.671150582776191,
+      "error_estandar": 0.046770558888659816,
+      "t": -5.1739652239351255,
+      "r2": 0.04184303679058066
     },
     "basica_incompleta": {
-      "pendiente": -0.01934724318579672,
-      "intercepto": -2.8686870278625496,
-      "error_estandar": 0.003206941913246993,
-      "t": -6.0329259803174455,
-      "r2": 0.05876076754401882
+      "pendiente": -0.02074728230644893,
+      "intercepto": -2.830231886979057,
+      "error_estandar": 0.003028283550618205,
+      "t": -6.85116897399304,
+      "r2": 0.07112558996047702
     },
     "analfabeta": {
-      "pendiente": -0.03056411994280331,
-      "intercepto": -3.3360227618772034,
-      "error_estandar": 0.008253427777670689,
-      "t": -3.703203174018592,
-      "r2": 0.02298206565745453
+      "pendiente": -0.034933034621832525,
+      "intercepto": -3.320286223682018,
+      "error_estandar": 0.007462363353803819,
+      "t": -4.6812293861335466,
+      "r2": 0.03451477164062766
     }
   },
   "nota": "Asociacion transversal entre tasa de captacion y rezago, no efecto causal. Solo se aplica al CAMBIO DE RITMO del rezago proyectado (el nivel ya esta en la tasa historica) y se acota a +/-6%."

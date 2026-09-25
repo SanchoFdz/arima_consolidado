@@ -106,9 +106,10 @@ class Externos:
         # a todos los municipios de esos estados.
         cw = self.crosswalk
         # "Nacional" son los estados que EXISTEN en el panel educativo, no los 32.
-        # La fuente ANUIES no trae Chiapas, asi que contar su poblacion en el
-        # denominador nacional inflaba el universo 4.8% y desinflaba la tasa de
-        # captacion en la misma proporcion.
+        # Hasta sep 2026 la fuente ANUIES no traia Chiapas, y contar su poblacion
+        # en el denominador nacional inflaba el universo 4.8% y desinflaba la tasa
+        # de captacion en la misma proporcion. Hoy estan los 32; la regla se queda
+        # por si una fuente futura vuelve a llegar incompleta.
         estados_panel = {_estado(e) for e in self.crosswalk["Estado"].astype(str)}
         self.todos = set()
         for e in estados_panel:
